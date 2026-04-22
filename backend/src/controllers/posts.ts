@@ -1,10 +1,11 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import { ReactionType } from '@prisma/client';
 import prisma from '../prismaClient';
 import type { AuthRequest } from '../middleware/authMiddleware';
 
 export const getPosts = async (req: AuthRequest, res: Response) => {
   try {
-    const posts = await prisma.post.findMany({
+    const threads = await prisma.thread.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         author: { select: { id: true, name: true, avatar: true } },
@@ -16,89 +17,100 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Format posts for the frontend
-    const formattedPosts = posts.map(post => {
-      const likes = post.reactions.filter(r => r.type === 'LIKE').length;
-      const loves = post.reactions.filter(r => r.type === 'LOVE').length;
+    // Format threads for the frontend
+    const formattedThreads = threads.map(thread => {
+      const likes = thread.reactions.filter(r => r.type === ReactionType.LIKE).length;
+      const loves = thread.reactions.filter(r => r.type === ReactionType.LOVE).length;
 
       return {
-        id: post.id,
-        author: post.author,
-        content: post.content,
-        createdAt: post.createdAt,
+        id: thread.id,
+        author: thread.author,
+        content: thread.content,
+        image: thread.image,
+        replyToId: thread.replyToId,
+        createdAt: thread.createdAt,
         likes,
         loves,
-        comments: post.comments.map(c => ({
+        comments: thread.comments.map(c => ({
           id: c.id,
           author: c.author.name,
           content: c.content,
           createdAt: c.createdAt,
         })),
-        reactions: post.reactions // keeping raw reactions if needed
+        reactions: thread.reactions,
       };
     });
 
-    res.json(formattedPosts);
+    res.json(formattedThreads);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch posts' });
+    res.status(500).json({ error: 'Failed to fetch threads' });
   }
 };
 
 export const createPost = async (req: AuthRequest, res: Response) => {
   try {
-    const { content } = req.body;
+    const { content, image, replyToId } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const post = await prisma.post.create({
+    const thread = await prisma.thread.create({
       data: {
         content,
         authorId: userId,
+        image,
+        replyToId,
       },
       include: {
         author: { select: { id: true, name: true, avatar: true } },
         comments: true,
         reactions: true,
-      }
+      },
     });
 
     res.status(201).json({
-      id: post.id,
-      author: post.author,
-      content: post.content,
-      createdAt: post.createdAt,
+      id: thread.id,
+      author: thread.author,
+      content: thread.content,
+      image: thread.image,
+      replyToId: thread.replyToId,
+      createdAt: thread.createdAt,
       likes: 0,
       loves: 0,
-      comments: []
+      comments: [],
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create post' });
+    res.status(500).json({ error: 'Failed to create thread' });
   }
 };
 
 export const addComment = async (req: AuthRequest, res: Response) => {
   try {
-    const { postId } = req.params;
+    const rawThreadId = req.params.threadId ?? req.params.postId;
+    const threadId = Array.isArray(rawThreadId) ? rawThreadId[0] : rawThreadId;
     const { content } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!threadId) return res.status(400).json({ error: 'Thread ID is required' });
 
     const comment = await prisma.comment.create({
       data: {
         content,
-        postId: postId as string,
+        threadId,
         authorId: userId,
       },
-      include: {
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
         author: { select: { name: true } },
-      }
+      },
     });
 
     res.status(201).json({
       id: comment.id,
-      author: (comment as any).author.name,
+      author: comment.author.name,
       content: comment.content,
       createdAt: comment.createdAt,
     });
@@ -109,43 +121,47 @@ export const addComment = async (req: AuthRequest, res: Response) => {
 
 export const reactToPost = async (req: AuthRequest, res: Response) => {
   try {
-    const { postId } = req.params;
-    const { type } = req.body; // 'LIKE' or 'LOVE'
+    const rawThreadId = req.params.threadId ?? req.params.postId;
+    const threadId = Array.isArray(rawThreadId) ? rawThreadId[0] : rawThreadId;
+    const type = req.body.type as ReactionType;
     const userId = req.user?.userId;
 
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!threadId) return res.status(400).json({ error: 'Thread ID is required' });
+
+    const validReactionTypes = Object.values(ReactionType);
+    if (!validReactionTypes.includes(type)) {
+      return res.status(400).json({ error: 'Invalid reaction type' });
+    }
 
     // Check if reaction already exists
     const existingReaction = await prisma.reaction.findUnique({
-      where: { postId_userId: { postId: postId as string, userId } },
+      where: { threadId_userId: { threadId, userId } },
     });
 
     if (existingReaction) {
       if (existingReaction.type === type) {
-        // Toggle off if clicking the same reaction
         await prisma.reaction.delete({ where: { id: existingReaction.id } });
         return res.json({ message: 'Reaction removed' });
-      } else {
-        // Change reaction type
-        const updated = await prisma.reaction.update({
-          where: { id: existingReaction.id },
-          data: { type },
-        });
-        return res.json({ message: 'Reaction updated', reaction: updated });
       }
+
+      const updated = await prisma.reaction.update({
+        where: { id: existingReaction.id },
+        data: { type },
+      });
+      return res.json({ message: 'Reaction updated', reaction: updated });
     }
 
-    // Create new reaction
     const reaction = await prisma.reaction.create({
       data: {
         type,
-        postId: postId as string,
+        threadId,
         userId,
       },
     });
 
     res.status(201).json({ message: 'Reaction added', reaction });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to react to post' });
+    res.status(500).json({ error: 'Failed to react to thread' });
   }
 };
