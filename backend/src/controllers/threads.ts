@@ -315,3 +315,67 @@ export const getThreadReactions = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch thread reactions' });
   }
 };
+
+export const retweetThread = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = req.params.id;
+    if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Invalid thread id' });
+
+    const thread = await prisma.thread.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const existingRetweet = await prisma.retweet.findUnique({
+      where: { threadId_userId: { threadId: id, userId } },
+      select: { id: true },
+    });
+
+    if (existingRetweet) {
+      return res.status(409).json({ error: 'You already retweeted this thread' });
+    }
+
+    const retweet = await prisma.retweet.create({
+      data: {
+        threadId: id,
+        userId,
+      },
+    });
+
+    res.status(201).json({ message: 'Retweeted successfully', retweet });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retweet thread' });
+  }
+};
+
+export const unretweetThread = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = req.params.id;
+    if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Invalid thread id' });
+
+    const existingRetweet = await prisma.retweet.findUnique({
+      where: { threadId_userId: { threadId: id, userId } },
+      select: { id: true },
+    });
+
+    if (!existingRetweet) {
+      return res.status(404).json({ error: 'Retweet not found for this user on the thread' });
+    }
+
+    await prisma.retweet.delete({
+      where: { id: existingRetweet.id },
+    });
+
+    res.json({ message: 'Unretweeted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to unretweet thread' });
+  }
+};

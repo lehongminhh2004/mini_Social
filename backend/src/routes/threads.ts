@@ -7,8 +7,10 @@ import {
   getThreadById,
   getTimelineThreads,
   reactToThread,
+  retweetThread,
   removeThreadReaction,
   replyToThread,
+  unretweetThread,
 } from '../controllers/threads';
 import { authenticate } from '../middleware/authMiddleware';
 
@@ -25,5 +27,7 @@ router.post('/:id/reply', replyToThread);
 router.post('/:id/react', reactToThread);
 router.delete('/:id/react', removeThreadReaction);
 router.get('/:id/reactions', getThreadReactions);
+router.post('/:id/retweet', retweetThread);
+router.delete('/:id/retweet', unretweetThread);
 
 export default router;
