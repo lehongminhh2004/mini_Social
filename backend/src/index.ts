@@ -5,6 +5,8 @@ import authRoutes from './routes/auth';
 import postRoutes from './routes/posts';
 import threadRoutes from './routes/threads';
 import userRoutes from './routes/users';
+import messageRoutes from './routes/messages';
+import notificationRoutes from './routes/notifications';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -16,6 +18,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/threads', threadRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.get('/', (req, res) => {
   res.send('MiniSocial API is running!');
