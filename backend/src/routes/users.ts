@@ -10,12 +10,10 @@ import {
 
 const router = Router();
 
-router.use(authenticate);
-
-router.post('/:id/follow', followUser);
-router.delete('/:id/unfollow', unfollowUser);
+router.post('/:id/follow', authenticate, followUser);
+router.delete('/:id/unfollow', authenticate, unfollowUser);
 router.get('/:id/followers', getFollowers);
 router.get('/:id/following', getFollowing);
-router.get('/:id/mutual', getMutualFollowing);
+router.get('/:id/mutual', authenticate, getMutualFollowing);
 
 export default router;

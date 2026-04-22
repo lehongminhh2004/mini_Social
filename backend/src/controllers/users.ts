@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 import prisma from '../prismaClient';
 import type { AuthRequest } from '../middleware/authMiddleware';
-import { basicUserFields } from '../helpers/follow';
+import { basicUserFields, isMutualFollow } from '../helpers/follow';
 
 const formatUsersPayload = <T>(users: T[]) => ({
   count: users.length,
@@ -148,31 +148,42 @@ export const getMutualFollowing = async (req: AuthRequest, res: Response) => {
 
     if (!currentUserId) return res.status(401).json({ error: 'Unauthorized' });
     if (!targetUserId) return res.status(400).json({ error: 'User id is required' });
+    if (currentUserId === targetUserId) {
+      return res.status(400).json({ error: 'Cannot check mutual follow with yourself' });
+    }
 
     const user = await ensureUserExists(targetUserId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const [myFollowing, targetFollowing] = await Promise.all([
-      prisma.follow.findMany({
-        where: { followerId: currentUserId },
-        select: {
-          following: { select: basicUserFields },
-          followingId: true,
+    const [isFollowing, isFollowedBy, isMutual] = await Promise.all([
+      prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: currentUserId,
+            followingId: targetUserId,
+          },
         },
+        select: { id: true },
       }),
-      prisma.follow.findMany({
-        where: { followerId: targetUserId },
-        select: { followingId: true },
+      prisma.follow.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: targetUserId,
+            followingId: currentUserId,
+          },
+        },
+        select: { id: true },
       }),
+      isMutualFollow(prisma, currentUserId, targetUserId),
     ]);
 
-    const targetFollowingSet = new Set(targetFollowing.map(item => item.followingId));
-    const mutualUsers = myFollowing
-      .filter(item => targetFollowingSet.has(item.followingId))
-      .map(item => item.following);
-
-    return res.json(formatUsersPayload(mutualUsers));
+    return res.json({
+      userId: targetUserId,
+      isFollowing: Boolean(isFollowing),
+      isFollowedBy: Boolean(isFollowedBy),
+      isMutual,
+    });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to fetch mutual users' });
+    return res.status(500).json({ error: 'Failed to check mutual follow' });
   }
 };
