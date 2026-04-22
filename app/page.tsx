@@ -189,7 +189,7 @@ export default function Home() {
     }
 
     try {
-      await fetch(`${API_URL}/posts/${postId}/react`, {
+      await fetch(`${API_URL}/threads/${postId}/react`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

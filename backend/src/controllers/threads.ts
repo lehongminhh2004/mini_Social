@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { ReactionType } from '@prisma/client';
 import prisma from '../prismaClient';
 import type { AuthRequest } from '../middleware/authMiddleware';
 
@@ -201,5 +202,116 @@ export const replyToThread = async (req: AuthRequest, res: Response) => {
     res.status(201).json(reply);
   } catch (error) {
     res.status(500).json({ error: 'Failed to reply thread' });
+  }
+};
+
+export const reactToThread = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = req.params.id;
+    if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Invalid thread id' });
+
+    const type = req.body.type as ReactionType;
+    if (!Object.values(ReactionType).includes(type)) {
+      return res.status(400).json({ error: 'Invalid reaction type' });
+    }
+
+    const thread = await prisma.thread.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const existingReaction = await prisma.reaction.findUnique({
+      where: { threadId_userId: { threadId: id, userId } },
+    });
+
+    if (existingReaction) {
+      const updatedReaction = await prisma.reaction.update({
+        where: { id: existingReaction.id },
+        data: { type },
+      });
+
+      return res.json({ message: 'Reaction updated', reaction: updatedReaction });
+    }
+
+    const reaction = await prisma.reaction.create({
+      data: {
+        type,
+        threadId: id,
+        userId,
+      },
+    });
+
+    res.status(201).json({ message: 'Reaction added', reaction });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to react to thread' });
+  }
+};
+
+export const removeThreadReaction = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = req.params.id;
+    if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Invalid thread id' });
+
+    const existingReaction = await prisma.reaction.findUnique({
+      where: { threadId_userId: { threadId: id, userId } },
+      select: { id: true },
+    });
+
+    if (!existingReaction) {
+      return res.status(404).json({ error: 'Reaction not found for this user on the thread' });
+    }
+
+    await prisma.reaction.delete({ where: { id: existingReaction.id } });
+
+    res.json({ message: 'Reaction removed' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to remove reaction' });
+  }
+};
+
+export const getThreadReactions = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id;
+    if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Invalid thread id' });
+
+    const thread = await prisma.thread.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const reactions = await prisma.reaction.findMany({
+      where: { threadId: id },
+      include: {
+        user: { select: { id: true, name: true, avatar: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const summary = Object.values(ReactionType).reduce<Record<ReactionType, number>>((acc, reactionType) => {
+      acc[reactionType] = 0;
+      return acc;
+    }, {} as Record<ReactionType, number>);
+
+    for (const reaction of reactions) {
+      summary[reaction.type] += 1;
+    }
+
+    res.json({
+      items: reactions,
+      summary,
+      total: reactions.length,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch thread reactions' });
   }
 };
