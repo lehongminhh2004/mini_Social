@@ -16,14 +16,12 @@ import { authenticate } from '../middleware/authMiddleware';
 
 const router = Router();
 
-router.use(authenticate);
-
 router.get('/', getTimelineThreads);
 router.get('/explore', getExploreThreads);
 router.get('/:id', getThreadById);
-router.post('/', createThread);
-router.delete('/:id', deleteThread);
-router.post('/:id/reply', replyToThread);
+router.post('/', authenticate, createThread);
+router.delete('/:id', authenticate, deleteThread);
+router.post('/:id/reply', authenticate, replyToThread);
 router.post('/:id/react', reactToThread);
 router.delete('/:id/react', removeThreadReaction);
 router.get('/:id/reactions', getThreadReactions);
