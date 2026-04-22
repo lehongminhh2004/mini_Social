@@ -89,6 +89,8 @@ model Reaction {
   createdAt DateTime     @default(now())
 
   @@unique([threadId, userId])
+  @@index([threadId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Retweet {
@@ -100,6 +102,8 @@ model Retweet {
   createdAt DateTime @default(now())
 
   @@unique([threadId, userId])
+  @@index([threadId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Conversation {
