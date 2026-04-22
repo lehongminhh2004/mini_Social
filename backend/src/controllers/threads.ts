@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { ReactionType } from '@prisma/client';
+import { Prisma, ReactionType } from '@prisma/client';
 import prisma from '../prismaClient';
 import type { AuthRequest } from '../middleware/authMiddleware';
 
@@ -10,7 +10,67 @@ const MAX_LIMIT = 50;
 
 const threadInclude = {
   author: { select: { id: true, name: true, avatar: true } },
+  reactions: { select: { type: true, userId: true } },
+  _count: { select: { replies: true, comments: true, reactions: true, retweets: true } },
+} satisfies Prisma.ThreadInclude;
+
+const threadDetailInclude = {
+  ...threadInclude,
+  comments: {
+    include: {
+      author: { select: { id: true, name: true, avatar: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  },
+} satisfies Prisma.ThreadInclude;
+
+type ThreadWithRelations = Prisma.ThreadGetPayload<{ include: typeof threadInclude }>;
+type ThreadWithDetails = Prisma.ThreadGetPayload<{ include: typeof threadDetailInclude }>;
+
+const emptyReactionSummary: Record<ReactionType, number> = {
+  LIKE: 0,
+  LOVE: 0,
+  HAHA: 0,
+  SAD: 0,
+  ANGRY: 0,
 };
+
+const formatThread = (thread: ThreadWithRelations, viewerId?: string) => {
+  const reactionSummary = thread.reactions.reduce<Record<ReactionType, number>>((acc, reaction) => {
+    acc[reaction.type] += 1;
+    return acc;
+  }, { ...emptyReactionSummary });
+
+  const viewerReaction = viewerId
+    ? thread.reactions.find(reaction => reaction.userId === viewerId)?.type ?? null
+    : null;
+
+  return {
+    id: thread.id,
+    content: thread.content,
+    image: thread.image,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+    replyToId: thread.replyToId,
+    author: thread.author,
+    stats: {
+      replies: thread._count.replies,
+      comments: thread._count.comments,
+      reactions: thread._count.reactions,
+      retweets: thread._count.retweets,
+    },
+    reactionSummary,
+    viewerReaction,
+  };
+};
+
+const formatComment = (comment: ThreadWithDetails['comments'][number]) => ({
+  id: comment.id,
+  content: comment.content,
+  createdAt: comment.createdAt,
+  updatedAt: comment.updatedAt,
+  author: comment.author,
+});
 
 const parsePagination = (pageQuery?: string, limitQuery?: string) => {
   const page = Math.max(Number.parseInt(pageQuery ?? `${DEFAULT_PAGE}`, 10) || DEFAULT_PAGE, 1);
@@ -47,13 +107,10 @@ export const getTimelineThreads = async (req: AuthRequest, res: Response) => {
         authorId: { in: authorIds },
       },
       orderBy: { createdAt: 'desc' },
-      include: {
-        ...threadInclude,
-        _count: { select: { replies: true } },
-      },
+      include: threadInclude,
     });
 
-    res.json(threads);
+    res.json({ items: threads.map(thread => formatThread(thread, userId)) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch timeline threads' });
   }
@@ -61,6 +118,7 @@ export const getTimelineThreads = async (req: AuthRequest, res: Response) => {
 
 export const getExploreThreads = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user?.userId;
     const { page, limit, skip } = parsePagination(req.query.page as string | undefined, req.query.limit as string | undefined);
 
     const [items, total] = await Promise.all([
@@ -69,16 +127,13 @@ export const getExploreThreads = async (req: AuthRequest, res: Response) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
-        include: {
-          ...threadInclude,
-          _count: { select: { replies: true } },
-        },
+        include: threadInclude,
       }),
       prisma.thread.count({ where: { replyToId: null } }),
     ]);
 
     res.json({
-      items,
+      items: items.map(thread => formatThread(thread, userId)),
       pagination: {
         page,
         limit,
@@ -93,13 +148,14 @@ export const getExploreThreads = async (req: AuthRequest, res: Response) => {
 
 export const getThreadById = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user?.userId;
     const id = req.params.id;
     if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Invalid thread id' });
 
     const thread = await prisma.thread.findUnique({
       where: { id },
       include: {
-        ...threadInclude,
+        ...threadDetailInclude,
         replyTo: { include: threadInclude },
       },
     });
@@ -112,7 +168,14 @@ export const getThreadById = async (req: AuthRequest, res: Response) => {
       include: threadInclude,
     });
 
-    res.json({ thread, replies });
+    res.json({
+      item: {
+        ...formatThread(thread, userId),
+        comments: thread.comments.map(formatComment),
+        replyTo: thread.replyTo ? formatThread(thread.replyTo, userId) : null,
+      },
+      replies: replies.map(reply => formatThread(reply, userId)),
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch thread' });
   }
@@ -140,7 +203,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       include: threadInclude,
     });
 
-    res.status(201).json(thread);
+    res.status(201).json(formatThread(thread, userId));
   } catch (error) {
     res.status(500).json({ error: 'Failed to create thread' });
   }
@@ -199,7 +262,7 @@ export const replyToThread = async (req: AuthRequest, res: Response) => {
       include: threadInclude,
     });
 
-    res.status(201).json(reply);
+    res.status(201).json(formatThread(reply, userId));
   } catch (error) {
     res.status(500).json({ error: 'Failed to reply thread' });
   }
