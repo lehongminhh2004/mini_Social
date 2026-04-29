@@ -3,162 +3,118 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { api } from '@/app/lib/api';
+import { useAuth } from '@/app/lib/auth-context';
+import { User } from '@/app/lib/types';
 
-export default function RegisterPage() {
-    const router = useRouter();
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
+export default function Register() {
+  const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { login } = useAuth();
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-        // Validation
-        if (!name || !email || !password || !confirmPassword) {
-            setError('Vui lòng điền tất cả các trường');
-            return;
-        }
+    try {
+      // Đăng ký — BE nhận User object với passwordHash
+      await api.post('/users/register', {
+        username,
+        fullName,
+        email,
+        passwordHash: password,
+      });
 
-        if (password.length < 6) {
-            setError('Mật khẩu phải có ít nhất 6 ký tự');
-            return;
-        }
+      // Tự động đăng nhập sau khi đăng ký thành công
+      const res = await api.post<string>('/users/login', {
+        username,
+        passwordHash: password,
+      });
 
-        if (password !== confirmPassword) {
-            setError('Mật khẩu không khớp');
-            return;
-        }
+      const token = res.data;
+      localStorage.setItem('token', token);
 
-        setLoading(true);
+      // Lấy thông tin user vừa tạo
+      const userRes = await api.get<User[]>(`/users/search?keyword=${username}`);
+      const currentUser = userRes.data.find((u) => u.username === username) ?? userRes.data[0];
 
-        try {
-            const response = await fetch('http://localhost:3001/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, password }),
-            });
+      login(token, currentUser);
+      router.push('/');
+    } catch (err: any) {
+      setError(err.response?.data || 'Đăng ký thất bại. Username hoặc email có thể đã tồn tại.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Registration failed');
-            }
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-8 text-center">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Sign up for Threads</h1>
 
-            // Redirect to login
-            router.push('/auth/login?registered=true');
-        } catch (err: any) {
-            setError(err.message || 'Registration failed');
-        } finally {
-            setLoading(false);
-        }
-    };
+        <form onSubmit={handleRegister} className="space-y-4">
+          {error && <div className="text-red-500 text-sm">{error}</div>}
 
-    return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-blue-600">facebook</h1>
-                    <p className="text-gray-600 mt-2">Tạo tài khoản MiniSocial mới</p>
-                </div>
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username (không dấu, không khoảng trắng)"
+              required
+              className="w-full p-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-border transition-shadow"
+            />
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                        {error}
-                    </div>
-                )}
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Họ và tên"
+              required
+              className="w-full p-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-border transition-shadow"
+            />
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">
-                            Tên đầy đủ
-                        </label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Nguyễn Văn A"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            required
-                        />
-                    </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              required
+              className="w-full p-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-border transition-shadow"
+            />
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="example@email.com"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            required
-                        />
-                    </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mật khẩu"
+              required
+              className="w-full p-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-border transition-shadow"
+            />
+          </div>
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">
-                            Mật khẩu (tối thiểu 6 ký tự)
-                        </label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Nhập mật khẩu"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            required
-                        />
-                    </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full p-4 bg-primary text-background font-semibold rounded-xl disabled:opacity-50 hover:bg-primary/90 transition-colors"
+          >
+            {loading ? 'Đang đăng ký...' : 'Sign up'}
+          </button>
+        </form>
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">
-                            Xác nhận mật khẩu
-                        </label>
-                        <input
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="Nhập lại mật khẩu"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            required
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg transition mt-4"
-                    >
-                        {loading ? 'Đang tạo tài khoản...' : 'Tạo Tài Khoản'}
-                    </button>
-                </form>
-
-                {/* Divider */}
-                <div className="my-6 flex items-center">
-                    <div className="flex-1 border-t border-gray-300"></div>
-                    <div className="px-3 text-gray-500">hoặc</div>
-                    <div className="flex-1 border-t border-gray-300"></div>
-                </div>
-
-                {/* Login Link */}
-                <div className="text-center">
-                    <p className="text-gray-600">
-                        Đã có tài khoản?{' '}
-                        <Link
-                            href="/auth/login"
-                            className="text-blue-600 hover:text-blue-700 font-semibold"
-                        >
-                            Đăng nhập
-                        </Link>
-                    </p>
-                </div>
-            </div>
+        <div className="text-muted">
+          Already have an account?{' '}
+          <Link href="/auth/login" className="text-foreground hover:underline font-semibold">
+            Log in
+          </Link>
         </div>
-    );
+      </div>
+    </div>
+  );
 }
