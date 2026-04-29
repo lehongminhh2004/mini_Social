@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import type { ThreadItem } from '@/app/types/thread';
+import type { Post } from '@/app/lib/types';
 import ReactionButton from './ReactionButton';
 
 interface ThreadCardProps {
-  thread: ThreadItem;
+  thread: Post;
 }
 
 export default function ThreadCard({ thread }: ThreadCardProps) {
@@ -11,8 +11,8 @@ export default function ThreadCard({ thread }: ThreadCardProps) {
     <article className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <p className="font-semibold text-gray-900">{thread.author.name}</p>
-          <p className="text-xs text-gray-500">@{thread.author.username}</p>
+          <p className="font-semibold text-gray-900">{thread.authorName}</p>
+          <p className="text-xs text-gray-500">@{thread.authorUsername}</p>
         </div>
         <p className="text-xs text-gray-500">{new Date(thread.createdAt).toLocaleString('vi-VN')}</p>
       </div>
@@ -23,9 +23,9 @@ export default function ThreadCard({ thread }: ThreadCardProps) {
 
       <div className="mt-3 flex items-center gap-3 text-sm text-gray-600">
         <ReactionButton />
-        <span>💬 {thread.repliesCount}</span>
-        <span>🔁 {thread.retweets}</span>
-        <span>❤️ {thread.reactions.LOVE + thread.reactions.LIKE}</span>
+        <span>💬 {thread.totalComments}</span>
+        <span>🔁 {thread.totalShares}</span>
+        <span>❤️ {thread.totalReactions}</span>
       </div>
     </article>
   );

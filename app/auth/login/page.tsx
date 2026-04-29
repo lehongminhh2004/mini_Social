@@ -3,132 +3,92 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { api } from '@/app/lib/api';
+import { useAuth } from '@/app/lib/auth-context';
+import { User } from '@/app/lib/types';
 
-export default function LoginPage() {
-    const router = useRouter();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
+export default function Login() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { login } = useAuth();
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        setLoading(true);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-        try {
-            const response = await fetch('http://localhost:3001/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
-            });
+    try {
+      // BE trả về JWT string thuần (không phải object)
+      const res = await api.post<string>('/users/login', {
+        username,
+        passwordHash: password,
+      });
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Login failed');
-            }
+      const token = res.data;
 
-            const data = await response.json();
+      // Lưu token trước để interceptor có thể gắn vào request tiếp theo
+      localStorage.setItem('token', token);
 
-            // Store token
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+      // Lấy thông tin user hiện tại bằng cách search theo username
+      const userRes = await api.get<User[]>(`/users/search?keyword=${username}`);
+      const currentUser = userRes.data.find((u) => u.username === username) ?? userRes.data[0];
 
-            // Redirect to home
-            router.push('/');
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Login failed');
-        } finally {
-            setLoading(false);
-        }
-    };
+      login(token, currentUser);
+      router.push('/');
+    } catch (err: any) {
+      setError(err.response?.data || 'Đăng nhập thất bại. Kiểm tra lại username/mật khẩu.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-blue-600">facebook</h1>
-                    <p className="text-gray-600 mt-2">Đăng nhập vào MiniSocial</p>
-                </div>
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-8 text-center">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Log in to Threads</h1>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                        {error}
-                    </div>
-                )}
+        <form onSubmit={handleLogin} className="space-y-4">
+          {error && <div className="text-red-500 text-sm">{error}</div>}
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">
-                            Email hoặc số điện thoại
-                        </label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="example@email.com"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            required
-                        />
-                    </div>
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              required
+              className="w-full p-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-border transition-shadow"
+            />
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">
-                            Mật khẩu
-                        </label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Nhập mật khẩu của bạn"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            required
-                        />
-                    </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              className="w-full p-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-border transition-shadow"
+            />
+          </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg transition"
-                    >
-                        {loading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
-                    </button>
-                </form>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full p-4 bg-primary text-background font-semibold rounded-xl disabled:opacity-50 hover:bg-primary/90 transition-colors"
+          >
+            {loading ? 'Đang đăng nhập...' : 'Log in'}
+          </button>
+        </form>
 
-                {/* Divider */}
-                <div className="my-6 flex items-center">
-                    <div className="flex-1 border-t border-gray-300"></div>
-                    <div className="px-3 text-gray-500">hoặc</div>
-                    <div className="flex-1 border-t border-gray-300"></div>
-                </div>
-
-                {/* Register Link */}
-                <div className="text-center">
-                    <p className="text-gray-600">
-                        Chưa có tài khoản?{' '}
-                        <Link
-                            href="/auth/register"
-                            className="text-blue-600 hover:text-blue-700 font-semibold"
-                        >
-                            Tạo tài khoản mới
-                        </Link>
-                    </p>
-                </div>
-
-                {/* Demo Credentials */}
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-gray-600">
-                        <strong>Test Account:</strong>
-                        <br />
-                        Email: test@test.com
-                        <br />
-                        Password: 123456
-                    </p>
-                </div>
-            </div>
+        <div className="text-muted">
+          Don&apos;t have an account?{' '}
+          <Link href="/auth/register" className="text-foreground hover:underline font-semibold">
+            Sign up
+          </Link>
         </div>
-    );
+      </div>
+    </div>
+  );
 }

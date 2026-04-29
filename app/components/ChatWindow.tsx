@@ -1,19 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { DirectMessage } from '@/app/types/thread';
+import type { ChatMessage } from '@/app/lib/types';
 
 interface ChatWindowProps {
   conversationId: string;
   currentUserId?: string;
-  messages: DirectMessage[];
+  messages: ChatMessage[];
 }
 
 export default function ChatWindow({ conversationId, messages, currentUserId = 'me' }: ChatWindowProps) {
   const [draft, setDraft] = useState('');
 
   const filteredMessages = useMemo(
-    () => messages.filter((message) => message.conversationId === conversationId),
+    () => messages.filter((message) => message.senderUsername === conversationId || message.receiverUsername === conversationId),
     [messages, conversationId],
   );
 
@@ -24,7 +24,7 @@ export default function ChatWindow({ conversationId, messages, currentUserId = '
           <div
             key={message.id}
             className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${
-              message.senderId === currentUserId ? 'ml-auto bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'
+              message.senderUsername === currentUserId ? 'ml-auto bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'
             }`}
           >
             {message.content}

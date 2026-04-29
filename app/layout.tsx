@@ -13,9 +13,11 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+import Providers from "./providers";
+
 export const metadata: Metadata = {
-  title: "MiniSocial",
-  description: "A simple social media platform",
+  title: "MiniSocial Threads",
+  description: "A minimalist social media platform",
 };
 
 export default function RootLayout({
@@ -24,11 +26,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

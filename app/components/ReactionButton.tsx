@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { ReactionType } from '@/app/types/thread';
+import type { ReactionType } from '@/app/lib/types';
 
 const reactionMap: Record<ReactionType, string> = {
   LIKE: '👍',

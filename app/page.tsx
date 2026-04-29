@@ -1,60 +1,104 @@
 'use client';
 
-import { useState } from 'react';
-import ComposeThread from './components/ComposeThread';
-import Sidebar from './components/Sidebar';
-import ThreadCard from './components/ThreadCard';
-import { mockThreads } from './lib/mock-data';
-import type { ThreadItem } from './types/thread';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { api } from '@/app/lib/api';
+import { Post } from '@/app/lib/types';
+import { PostCard } from '@/app/components/PostCard';
+import { Header } from '@/app/components/Header';
+import { BottomNav } from '@/app/components/BottomNav';
+import { PostComposer } from '@/app/components/PostComposer';
+import { Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Home() {
-  const [threads, setThreads] = useState<ThreadItem[]>(mockThreads);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const handleCompose = (content: string) => {
-    const newThread: ThreadItem = {
-      id: crypto.randomUUID(),
-      content,
-      createdAt: new Date().toISOString(),
-      author: {
-        id: 'me',
-        name: 'Bạn',
-        username: 'you',
+  useEffect(() => {
+    if (searchParams.get('compose') === 'true') {
+      setIsComposerOpen(true);
+      router.replace('/');
+    }
+  }, [searchParams, router]);
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status } =
+    useInfiniteQuery({
+      queryKey: ['feed'],
+      queryFn: async ({ pageParam = 0 }) => {
+        // BE dùng page bắt đầu từ 0, size mặc định 5
+        const res = await api.get<Post[]>(`/posts?page=${pageParam}&size=10`);
+        return {
+          items: res.data,
+          nextPage: res.data.length === 10 ? pageParam + 1 : undefined,
+        };
       },
-      repliesCount: 0,
-      retweets: 0,
-      reactions: { LIKE: 0, LOVE: 0, HAHA: 0, SAD: 0, ANGRY: 0 },
-    };
-
-    setThreads((prev) => [newThread, ...prev]);
-  };
+      initialPageParam: 0,
+      getNextPageParam: (lastPage) => lastPage.nextPage,
+    });
 
   return (
-    <main className="min-h-screen bg-gray-50 py-6 px-4">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="md:col-span-1">
-          <Sidebar />
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <main className="max-w-[600px] mx-auto min-h-screen pb-20">
+        <div className="w-full">
+          {status === 'pending' ? (
+            <div className="p-4 text-center text-muted">Loading threads...</div>
+          ) : status === 'error' ? (
+            <div className="p-4 text-center text-red-500">
+              Không thể tải bài viết. Kiểm tra kết nối với backend.
+            </div>
+          ) : (
+            <>
+              {data.pages.map((page, i) => (
+                <div key={i}>
+                  {page.items.map((post) => (
+                    <PostCard key={post.id} post={post} />
+                  ))}
+                </div>
+              ))}
+
+              {data.pages[0].items.length === 0 && (
+                <div className="p-8 text-center text-muted">
+                  Chưa có bài viết nào. Hãy là người đầu tiên đăng!
+                </div>
+              )}
+
+              {hasNextPage && (
+                <div className="p-4 flex justify-center">
+                  <button
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="text-primary hover:underline"
+                  >
+                    {isFetchingNextPage ? 'Loading more...' : 'Load more'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
+      </main>
 
-        <section className="md:col-span-2">
-          <ComposeThread onSubmit={handleCompose} />
-          <div className="space-y-3">
-            {threads.map((thread) => (
-              <ThreadCard key={thread.id} thread={thread} />
-            ))}
-          </div>
-        </section>
+      {/* Floating Action Button */}
+      <button
+        onClick={() => setIsComposerOpen(true)}
+        className="fixed bottom-20 right-6 md:bottom-8 md:right-8 bg-primary text-background p-4 rounded-2xl shadow-lg hover:scale-105 transition-transform z-40"
+      >
+        <Plus size={28} />
+      </button>
 
-        <aside className="md:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <h3 className="font-bold text-gray-900 mb-2">Trending</h3>
-            <ul className="text-sm text-gray-700 space-y-2">
-              <li>#nextjs</li>
-              <li>#typescript</li>
-              <li>#webdev</li>
-            </ul>
-          </div>
-        </aside>
-      </div>
-    </main>
+      <PostComposer
+        isOpen={isComposerOpen}
+        onClose={() => setIsComposerOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['feed'] })}
+      />
+
+      <BottomNav />
+    </div>
   );
 }
