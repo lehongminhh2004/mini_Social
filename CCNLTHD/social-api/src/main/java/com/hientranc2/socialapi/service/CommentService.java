@@ -1,5 +1,7 @@
 package com.hientranc2.socialapi.service;
 
+import com.hientranc2.socialapi.dto.CommentResponseDTO;
+import com.hientranc2.socialapi.dto.UserSummaryDTO;
 import com.hientranc2.socialapi.model.*;
 import com.hientranc2.socialapi.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +20,23 @@ public class CommentService {
     // 1. Tiêm chip Notification
     private final NotificationService notificationService; 
 
-    public Comment addComment(String username, UUID postId, String content) {
+    // Hàm "biến hình" từ Entity sang DTO để Frontend gọi comment.author.avatarUrl không bị lỗi
+    public CommentResponseDTO mapToDTO(Comment comment) {
+        UserSummaryDTO authorDTO = UserSummaryDTO.builder()
+                .username(comment.getUser().getUsername())
+                .fullName(comment.getUser().getFullName())
+                .avatarUrl(comment.getUser().getAvatarUrl())
+                .build();
+
+        return CommentResponseDTO.builder()
+                .id(comment.getId())
+                .content(comment.getContent())
+                .createdAt(comment.getCreatedAt())
+                .author(authorDTO) // Gán tác giả (author) vào đây
+                .build();
+    }
+
+    public CommentResponseDTO addComment(String username, UUID postId, String content) {
         User user = userRepository.findByUsername(username).orElseThrow();
         Post post = postRepository.findById(postId).orElseThrow();
 
@@ -40,10 +58,16 @@ public class CommentService {
             user.getFullName() + " đã bình luận về bài viết của bạn: \"" + content + "\""
         );
 
-        return savedComment;
+        // Trả về DTO thay vì Entity
+        return mapToDTO(savedComment);
     }
 
-    public List<Comment> getCommentsByPost(UUID postId) {
-        return commentRepository.findAllByPostIdOrderByCreatedAtDesc(postId);
+    public List<CommentResponseDTO> getCommentsByPost(UUID postId) {
+        List<Comment> comments = commentRepository.findAllByPostIdOrderByCreatedAtDesc(postId); // Hoặc tên hàm findByPostId tùy bạn đặt trong Repo
+        
+        // Dùng Stream để biến hình toàn bộ danh sách Comment thành CommentResponseDTO
+        return comments.stream()
+                .map(this::mapToDTO)
+                .toList();
     }
 }

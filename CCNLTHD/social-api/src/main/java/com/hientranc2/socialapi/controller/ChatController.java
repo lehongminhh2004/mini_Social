@@ -1,5 +1,6 @@
 package com.hientranc2.socialapi.controller;
 
+import com.hientranc2.socialapi.dto.ChatHistoryDTO; // Đã thêm import này
 import com.hientranc2.socialapi.dto.ChatMessageDTO;
 import com.hientranc2.socialapi.model.ChatMessage;
 import com.hientranc2.socialapi.model.User;
@@ -38,11 +39,20 @@ public class ChatController {
                 .build();
         ChatMessage savedMessage = chatMessageRepository.save(message);
 
+        // ĐÃ SỬA CHUẨN: Ép sang DTO cho an toàn, chống lỗi sập Server do vòng lặp JSON (Infinite Recursion)
+        ChatHistoryDTO responseDTO = ChatHistoryDTO.builder()
+                .senderUsername(sender.getUsername())
+                .receiverUsername(receiver.getUsername())
+                .content(savedMessage.getContent())
+                .timestamp(savedMessage.getTimestamp())
+                .build();
+
         // 3. MA THUẬT: Bắn tin nhắn trực tiếp qua màn hình người nhận!
-        // Người nhận (User B) đang lắng nghe ở cái loa có tên là: /user/{usernameB}/queue/messages
-        messagingTemplate.convertAndSend(
-                "/user/" + receiver.getUsername() + "/queue/messages",
-                savedMessage
+        // Dùng convertAndSendToUser để Spring tự động nối thành "/user/{username}/queue/messages"
+        messagingTemplate.convertAndSendToUser(
+                receiver.getUsername(), 
+                "/queue/messages", 
+                responseDTO
         );
     }
 }

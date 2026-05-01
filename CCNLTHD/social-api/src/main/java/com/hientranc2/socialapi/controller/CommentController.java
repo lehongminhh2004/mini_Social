@@ -1,6 +1,6 @@
 package com.hientranc2.socialapi.controller;
 
-import com.hientranc2.socialapi.model.Comment;
+import com.hientranc2.socialapi.dto.CommentResponseDTO;
 import com.hientranc2.socialapi.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,13 +21,13 @@ public class CommentController {
 
     // API Đăng bình luận mới
     @PostMapping("/post/{postId}")
-    public ResponseEntity<Comment> addComment(Principal principal, @PathVariable UUID postId, @RequestBody Map<String, String> request) {
+    public ResponseEntity<CommentResponseDTO> addComment(Principal principal, @PathVariable UUID postId, @RequestBody Map<String, String> request) {
         return ResponseEntity.ok(commentService.addComment(principal.getName(), postId, request.get("content")));
     }
 
     // API Xem danh sách bình luận của 1 bài viết
     @GetMapping("/post/{postId}")
-    public ResponseEntity<List<Comment>> getComments(@PathVariable UUID postId) {
+    public ResponseEntity<List<CommentResponseDTO>> getComments(@PathVariable UUID postId) {
         return ResponseEntity.ok(commentService.getCommentsByPost(postId));
     }
-}
+}   

@@ -9,6 +9,7 @@ import com.hientranc2.socialapi.dto.PostResponseDTO;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID; // Nhớ import UUID nhé
 
 @RestController
 @RequestMapping("/api/posts")
@@ -21,22 +22,37 @@ public class PostController {
     // API Đăng bài mới
     @PostMapping
     public ResponseEntity<Post> createPost(Principal principal, @RequestBody Map<String, String> request) {
-        // principal.getName() chính là username được bóc ra từ Token JWT!
         String username = principal.getName(); 
         String content = request.get("content");
-        String mediaUrl = request.get("mediaUrl"); // Có thể null nếu chỉ đăng chữ
+        String mediaUrl = request.get("mediaUrl"); 
 
         Post savedPost = postService.createPost(username, content, mediaUrl);
         return ResponseEntity.ok(savedPost);
     }
 
-    // API Lấy danh sách bài viết
+    // API Lấy danh sách bài viết (Bảng tin)
     @GetMapping
-   public ResponseEntity<List<PostResponseDTO>> getAllPosts(
-            // Nếu người dùng không gửi gì, tự động lấy trang 0 (trang đầu), mỗi trang 5 bài
+    public ResponseEntity<List<PostResponseDTO>> getNewsFeed(
+            Principal principal, 
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size
-    ) {
-        return ResponseEntity.ok(postService.getNewsFeed(page, size));
+            @RequestParam(defaultValue = "10") int size) {
+        
+        return ResponseEntity.ok(postService.getNewsFeed(principal.getName(), page, size));
+    }
+
+    // THÊM MỚI: API Lấy chi tiết 1 bài viết
+    @GetMapping("/{postId}")
+    public ResponseEntity<PostResponseDTO> getPostById(Principal principal, @PathVariable UUID postId) {
+        return ResponseEntity.ok(postService.getPostById(principal.getName(), postId));
+    }
+    // THÊM MỚI: API lấy danh sách bài "Đăng lại" của 1 user
+    @GetMapping("/user/{targetUsername}/shares")
+    public ResponseEntity<List<PostResponseDTO>> getSharedPostsByUser(
+            Principal principal, 
+            @PathVariable String targetUsername,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        
+        return ResponseEntity.ok(postService.getSharedPostsByUser(principal.getName(), targetUsername, page, size));
     }
 }

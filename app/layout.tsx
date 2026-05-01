@@ -14,6 +14,8 @@ const geistMono = localFont({
 });
 
 import Providers from "./providers";
+import { ChatProvider } from "./lib/ChatContext"; // Import Provider
+import { FloatingChat } from "./components/FloatingChat"; // Import Khung chat
 
 export const metadata: Metadata = {
   title: "MiniSocial Threads",
@@ -27,11 +29,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          {children}
+          {/* BỌC THÊM CHAT PROVIDER Ở ĐÂY */}
+          <ChatProvider>
+            {children}
+            {/* ĐẶT KHUNG CHAT Ở NGOÀI CÙNG ĐỂ NÓ LUÔN TRÔI NỔI */}
+            <FloatingChat />
+          </ChatProvider>
         </Providers>
       </body>
     </html>

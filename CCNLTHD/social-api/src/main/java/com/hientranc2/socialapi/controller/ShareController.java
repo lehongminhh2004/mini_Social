@@ -16,9 +16,10 @@ public class ShareController {
 
     private final ShareService shareService;
 
-    // API Bấm nút Share
+    // API Bấm nút Repost (Đăng lại)
     @PostMapping("/post/{postId}")
-    public ResponseEntity<String> sharePost(Principal principal, @PathVariable UUID postId) {
-        return ResponseEntity.ok(shareService.sharePost(principal.getName(), postId));
+    public ResponseEntity<String> toggleShare(Principal principal, @PathVariable UUID postId) {
+        // Gọi hàm toggleShare mới viết
+        return ResponseEntity.ok(shareService.toggleShare(principal.getName(), postId));
     }
 }

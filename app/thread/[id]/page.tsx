@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/app/lib/api';
 import { Post, Comment } from '@/app/lib/types';
 import { PostCard } from '@/app/components/PostCard';
@@ -11,7 +11,6 @@ import { Avatar } from '@/app/components/ui/Avatar';
 import { timeAgo } from '@/app/lib/utils';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 
 export default function ThreadDetailPage() {
   const params = useParams();
@@ -19,8 +18,18 @@ export default function ThreadDetailPage() {
   const [isReplying, setIsReplying] = useState(false);
   const queryClient = useQueryClient();
 
-  // Lấy danh sách comments của bài viết
-  const { data: comments, isLoading, error } = useQuery({
+  // 1. Gọi API Lấy chi tiết bài viết gốc (API Backend bạn vừa viết)
+  const { data: post, isLoading: isPostLoading } = useQuery({
+    queryKey: ['post', postId],
+    queryFn: async () => {
+      // Nhớ đảm bảo đường dẫn này khớp với PostController của bạn nhé
+      const res = await api.get<Post>(`/posts/${postId}`); 
+      return res.data;
+    },
+  });
+
+  // 2. Lấy danh sách comments của bài viết
+  const { data: comments, isLoading: isCommentsLoading, error } = useQuery({
     queryKey: ['comments', postId],
     queryFn: async () => {
       const res = await api.get<Comment[]>(`/comments/post/${postId}`);
@@ -28,21 +37,25 @@ export default function ThreadDetailPage() {
     },
   });
 
-  // Lấy thông tin bài viết từ feed cache nếu có, không thì fetch riêng
-  const feedData = queryClient.getQueryData<{ pages: { items: Post[] }[] }>(['feed']);
-  const cachedPost = feedData?.pages.flatMap((p) => p.items).find((p) => p.id === postId);
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="max-w-[600px] mx-auto min-h-screen pb-20">
         <div className="w-full">
-          {/* Bài viết gốc — lấy từ cache feed nếu có */}
-          {cachedPost && <PostCard post={cachedPost} hasReplies={(comments?.length ?? 0) > 0} />}
+          
+          {/* Render Bài viết gốc */}
+          {isPostLoading ? (
+             <div className="p-4 text-center text-muted">Loading post...</div>
+          ) : post ? (
+             // Nhét thẳng dữ liệu API mới vào PostCard
+             <PostCard post={post} hasReplies={(comments?.length ?? 0) > 0} />
+          ) : (
+             <div className="p-4 text-center text-red-500">Post not found.</div>
+          )}
 
-          {/* Comments */}
-          {isLoading ? (
+          {/* Render Comments */}
+          {isCommentsLoading ? (
             <div className="p-4 text-center text-muted">Loading replies...</div>
           ) : error ? (
             <div className="p-4 text-center text-red-500">Không thể tải replies.</div>
@@ -83,12 +96,12 @@ export default function ThreadDetailPage() {
       </main>
 
       {/* Reply bar */}
-      {cachedPost && (
+      {post && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 bg-background/90 backdrop-blur-sm border-t border-border p-3 flex items-center justify-center cursor-text text-muted"
           onClick={() => setIsReplying(true)}
         >
-          Reply to {cachedPost.authorName}...
+          Reply to {post.authorName}...
         </div>
       )}
 

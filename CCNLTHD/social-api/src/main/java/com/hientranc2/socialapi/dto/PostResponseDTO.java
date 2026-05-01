@@ -6,7 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
-
+import com.fasterxml.jackson.annotation.JsonProperty;
 @Data
 @Builder
 public class PostResponseDTO {
@@ -22,7 +22,10 @@ public class PostResponseDTO {
     private int totalReactions;
     private int totalComments;
     private int totalShares;
-
+    @JsonProperty("isLiked")
+    private boolean isLiked;
+    @JsonProperty("isShared")
+    private boolean isShared;
     // Breakdown từng loại reaction để FE hiển thị emoji riêng
     private Map<ReactionType, Long> reactionBreakdown;
 }

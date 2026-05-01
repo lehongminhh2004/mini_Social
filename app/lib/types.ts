@@ -32,6 +32,9 @@ export interface Post {
   totalComments: number;
   totalShares: number;
   reactionBreakdown: ReactionSummary;
+  isLiked: boolean;
+  isShared: boolean;  
+
 }
 
 // ============================================================
