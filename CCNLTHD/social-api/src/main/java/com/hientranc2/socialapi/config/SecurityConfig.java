@@ -3,6 +3,7 @@ package com.hientranc2.socialapi.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,44 +28,50 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // ĐÃ GỘP TẤT CẢ VÀO 1 TRẠM GÁC DUY NHẤT Ở ĐÂY:
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(Customizer.withDefaults()) // <--- Đã chèn lệnh bật CORS vào đây
+            .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                // CHỈ mở toang 2 cửa Đăng ký và Đăng nhập (Ai cũng vào được)
-                .requestMatchers("/api/users/register", "/api/users/login", "/ws/**", "/api/users/search").permitAll()
+                // Cho phép tất cả request OPTIONS (CORS Preflight) đi qua
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() 
                 
-                // CÒN LẠI TẤT CẢ các cửa khác (như xem danh sách, đăng bài) BẮT BUỘC CÓ THẺ
-                .anyRequest().authenticated()
+                // 🔥 ĐÃ FIX: Mở cửa trang báo lỗi hệ thống để không bị giấu lỗi bằng mã 403
+                .requestMatchers("/error").permitAll() 
+
+                // 1. KHU VỰC CÔNG CỘNG (Mọi người đều được xem, không cần đăng nhập)
+                .requestMatchers("/api/users/login", "/api/users/register").permitAll() 
+                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll() 
+                .requestMatchers(HttpMethod.GET, "/api/comments/**").permitAll() 
+                .requestMatchers(HttpMethod.GET, "/api/users/**").permitAll() 
+                .requestMatchers("/ws/**").permitAll() 
+
+                // 2. KHU VỰC VIP (Bắt buộc phải có Token / Đã đăng nhập mới được thao tác)
+                .requestMatchers(HttpMethod.POST, "/api/comments/post/**").authenticated() 
+                .requestMatchers(HttpMethod.POST, "/api/comments/**").authenticated() 
+                .requestMatchers(HttpMethod.POST, "/api/users/follow/**").authenticated() 
+                .requestMatchers(HttpMethod.POST, "/api/reactions/**").authenticated() 
+                .requestMatchers(HttpMethod.POST, "/api/shares/**").authenticated() 
+                
+                // Bất kỳ request nào khác không nằm trong danh sách trên đều phải đăng nhập
+                .anyRequest().authenticated() 
             )
-            // Lệnh cho anh bảo vệ đứng ở cửa chính trước khi người dùng chạm vào API
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
             
         return http.build();
     }
 
-    // Bean cấu hình chi tiết luật CORS (Giữ nguyên, không lỗi)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Cho phép Frontend ở cổng 3000 truy cập
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000")); 
-        
-        // Cho phép các loại request này
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS")); 
-        
-        // Cho phép Frontend gửi lên các Header này (đặc biệt là cái Authorization chứa Token)
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type")); 
-        
-        // Cho phép Frontend nhận cookie/thông tin xác thực
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept")); 
         configuration.setAllowCredentials(true); 
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // Áp dụng luật này cho TẤT CẢ đường dẫn API của bạn
         source.registerCorsConfiguration("/**", configuration); 
         return source;
     }

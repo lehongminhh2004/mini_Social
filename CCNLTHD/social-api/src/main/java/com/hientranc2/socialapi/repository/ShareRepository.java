@@ -18,4 +18,10 @@ public interface ShareRepository extends JpaRepository<Share, UUID> {
     List<Share> findAllByPostId(UUID postId);
     int countByPostId(UUID postId);
     Page<Share> findByUserUsernameOrderByCreatedAtDesc(String username, Pageable pageable);
+    Optional<Share> findByUserIdAndCommentId(UUID userId, UUID commentId);
+    List<Share> findAllByUserUsername(String username);
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByPostId(java.util.UUID postId);
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByCommentId(java.util.UUID commentId);
 }

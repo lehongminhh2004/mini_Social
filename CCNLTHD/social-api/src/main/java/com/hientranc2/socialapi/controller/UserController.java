@@ -1,38 +1,37 @@
 package com.hientranc2.socialapi.controller;
-
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hientranc2.socialapi.model.User;
 import com.hientranc2.socialapi.service.UserService;
-import com.hientranc2.socialapi.repository.UserRepository; // Thêm dòng này
-import lombok.Builder; // Thêm dòng này
-import lombok.Data; // Thêm dòng này
+import com.hientranc2.socialapi.repository.UserRepository;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin("*") // Mở cửa cho mọi Frontend gọi vào
+@CrossOrigin("*") 
 @RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
-    private final UserRepository userRepository; // THÊM DÒNG NÀY để móc Data
+    private final UserRepository userRepository;
 
-    // API Đăng ký: POST http://localhost:8080/api/users/register
     @PostMapping("/register")
     public ResponseEntity<User> register(@RequestBody User user) {
         try {
             User savedUser = userService.registerUser(user);
             return ResponseEntity.ok(savedUser);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null); // Trả về lỗi 400 nếu trùng email/username
+            return ResponseEntity.badRequest().body(null); 
         }
     }
 
-    // API Lấy danh sách: GET http://localhost:8080/api/users
     @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
@@ -49,14 +48,12 @@ public class UserController {
     }
 
     @PutMapping("/profile")
-    public ResponseEntity<User> updateProfile(
-            Principal principal,
-            @RequestBody User profileData) { // Dùng chính Model User để hứng Bio và AvatarUrl
+    public ResponseEntity<User> updateProfile(Principal principal, @RequestBody User profileData) { 
         return ResponseEntity.ok(userService.updateProfile(
-                principal.getName(), 
-                profileData.getFullName(), 
-                profileData.getBio(), 
-                profileData.getAvatarUrl()
+            principal.getName(), 
+            profileData.getFullName(), 
+            profileData.getBio(), 
+            profileData.getAvatarUrl()
         ));
     }
 
@@ -65,35 +62,53 @@ public class UserController {
         return ResponseEntity.ok(userService.searchUsers(keyword));
     }
 
-    // =================================================================================
-    // PHẦN CODE THÊM MỚI ĐỂ LÀM TRANG CÁ NHÂN (PROFILE) CHO NGƯỜI KHÁC
-    // =================================================================================
-
-    // 1. DTO để gói dữ liệu trả về cho an toàn (không gửi kèm password_hash)
     @Data
     @Builder
     public static class UserProfileDTO {
+        private UUID id;
         private String username;
         private String fullName;
         private String avatarUrl;
         private String bio;
         private String email;
+        private int followerCount;   
+        @JsonProperty("isFollowing")
+        private boolean isFollowing; 
     }
 
-    // 2. API lấy thông tin Profile của 1 người cụ thể: GET /api/users/{username}
     @GetMapping("/{username}")
-    public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable String username) {
-        // Tìm user dưới Database
-        User user = userRepository.findByUsername(username)
+    public ResponseEntity<UserProfileDTO> getUserProfile(
+            Principal principal, 
+            @PathVariable String username,
+            @RequestParam(required = false) String viewerUsername) {
+        
+        User targetUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng này"));
 
-        // Nặn thành cục DTO an toàn rồi gửi về FE
+        int followers = userRepository.countFollowers(targetUser.getId());
+        boolean followingStatus = false;
+        
+        // 💎 CHIẾC CHÌA KHÓA VÀNG: Nếu F5 làm Token bị trễ (null), lấy ngay tên mà Frontend truyền lên
+        String activeUser = (principal != null && principal.getName() != null) 
+                            ? principal.getName() : viewerUsername;
+
+        if (activeUser != null && !activeUser.isEmpty()) {
+            User currentUser = userRepository.findByUsername(activeUser).orElse(null);
+            if(currentUser != null){
+                 // Cập nhật: check > 0 để tránh lỗi ép kiểu boolean của EXISTS
+                 followingStatus = userRepository.checkFollowing(currentUser.getId(), targetUser.getId()) > 0;
+            }
+        }
+
         UserProfileDTO response = UserProfileDTO.builder()
-                .username(user.getUsername())
-                .fullName(user.getFullName())
-                .avatarUrl(user.getAvatarUrl())
-                .bio(user.getBio())
-                .email(user.getEmail())
+                .id(targetUser.getId()) 
+                .username(targetUser.getUsername())
+                .fullName(targetUser.getFullName())
+                .avatarUrl(targetUser.getAvatarUrl())
+                .bio(targetUser.getBio())
+                .email(targetUser.getEmail())
+                .followerCount(followers) 
+                .isFollowing(followingStatus) 
                 .build();
 
         return ResponseEntity.ok(response);

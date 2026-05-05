@@ -5,9 +5,8 @@ import lombok.*;
 import java.util.UUID;
 
 @Entity
-@Table(name = "reactions", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"user_id", "post_id"})
-})
+// ĐÃ SỬA: Xóa cái UniqueConstraint cũ đi vì giờ post_id có thể bị rỗng (khi react comment)
+@Table(name = "reactions")
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,9 +20,15 @@ public class Reaction {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // ĐÃ SỬA: Bỏ nullable = false
     @ManyToOne
-    @JoinColumn(name = "post_id", nullable = false)
+    @JoinColumn(name = "post_id") 
     private Post post;
+
+    // 🔥 TÍNH NĂNG MỚI: Cho phép thả tim vào Comment
+    @ManyToOne
+    @JoinColumn(name = "comment_id")
+    private Comment comment;
 
     @Enumerated(EnumType.STRING)
     private ReactionType type;

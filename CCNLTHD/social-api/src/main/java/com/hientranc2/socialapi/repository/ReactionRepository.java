@@ -17,4 +17,9 @@ public interface ReactionRepository extends JpaRepository<Reaction, UUID> {
     // Trả về danh sách [ReactionType, count] để build breakdown map
     @Query("SELECT r.type, COUNT(r) FROM Reaction r WHERE r.post.id = :postId GROUP BY r.type")
     List<Object[]> countByPostIdGroupByType(@Param("postId") UUID postId);
+    Optional<Reaction> findByUserIdAndCommentId(UUID userId, UUID commentId);
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByPostId(java.util.UUID postId);
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByCommentId(java.util.UUID commentId);
 }

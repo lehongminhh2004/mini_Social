@@ -3,13 +3,14 @@ package com.hientranc2.socialapi.controller;
 import com.hientranc2.socialapi.model.Post;
 import com.hientranc2.socialapi.service.PostService;
 import lombok.RequiredArgsConstructor;
+import lombok.Data;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.hientranc2.socialapi.dto.PostResponseDTO;
+import com.hientranc2.socialapi.dto.ShareResponseDTO; 
 import java.security.Principal;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID; // Nhớ import UUID nhé
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -19,40 +20,66 @@ public class PostController {
 
     private final PostService postService;
 
-    // API Đăng bài mới
-    @PostMapping
-    public ResponseEntity<Post> createPost(Principal principal, @RequestBody Map<String, String> request) {
-        String username = principal.getName(); 
-        String content = request.get("content");
-        String mediaUrl = request.get("mediaUrl"); 
+    @Data
+    public static class CreatePostRequest {
+        private String content;
+        private List<String> mediaUrls;
+    }
 
-        Post savedPost = postService.createPost(username, content, mediaUrl);
+    @PostMapping
+    public ResponseEntity<Post> createPost(Principal principal, @RequestBody CreatePostRequest request) {
+        String username = principal.getName(); 
+        Post savedPost = postService.createPost(username, request.getContent(), request.getMediaUrls());
         return ResponseEntity.ok(savedPost);
     }
 
-    // API Lấy danh sách bài viết (Bảng tin)
+    // 🔥 API MỚI: CẬP NHẬT BÀI VIẾT
+    @PutMapping("/{postId}")
+    public ResponseEntity<PostResponseDTO> updatePost(Principal principal, @PathVariable UUID postId, @RequestBody CreatePostRequest request) {
+        String username = principal.getName();
+        return ResponseEntity.ok(postService.updatePost(postId, username, request.getContent(), request.getMediaUrls()));
+    }
+
+    // 🔥 API MỚI: XÓA BÀI VIẾT
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<String> deletePost(Principal principal, @PathVariable UUID postId) {
+        String username = principal.getName();
+        postService.deletePost(postId, username);
+        return ResponseEntity.ok("Xóa bài viết thành công");
+    }
+
     @GetMapping
     public ResponseEntity<List<PostResponseDTO>> getNewsFeed(
             Principal principal, 
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        
-        return ResponseEntity.ok(postService.getNewsFeed(principal.getName(), page, size));
+        String username = (principal != null) ? principal.getName() : null;
+        return ResponseEntity.ok(postService.getNewsFeed(username, page, size));
     }
 
-    // THÊM MỚI: API Lấy chi tiết 1 bài viết
     @GetMapping("/{postId}")
     public ResponseEntity<PostResponseDTO> getPostById(Principal principal, @PathVariable UUID postId) {
-        return ResponseEntity.ok(postService.getPostById(principal.getName(), postId));
+        String username = (principal != null) ? principal.getName() : null;
+        return ResponseEntity.ok(postService.getPostById(username, postId));
     }
-    // THÊM MỚI: API lấy danh sách bài "Đăng lại" của 1 user
+
     @GetMapping("/user/{targetUsername}/shares")
-    public ResponseEntity<List<PostResponseDTO>> getSharedPostsByUser(
+    public ResponseEntity<List<ShareResponseDTO>> getSharedPostsByUser(
             Principal principal, 
             @PathVariable String targetUsername,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        
-        return ResponseEntity.ok(postService.getSharedPostsByUser(principal.getName(), targetUsername, page, size));
+        String username = (principal != null) ? principal.getName() : null;
+        return ResponseEntity.ok(postService.getSharedPostsByUser(username, targetUsername, page, size));
+    }
+    
+    @GetMapping("/user/{targetUsername}")
+    public ResponseEntity<List<PostResponseDTO>> getPostsByUser(
+            Principal principal, 
+            @PathVariable String targetUsername,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        String username = (principal != null) ? principal.getName() : null;
+        return ResponseEntity.ok(postService.getPostsByUser(username, targetUsername, page, size));
     }
 }

@@ -10,7 +10,9 @@ import java.util.UUID;
 @Repository
 public interface PostRepository extends JpaRepository<Post, UUID> {
     
-    // Thay đổi từ List sang Page, thêm tham số Pageable
+    // Lấy bài viết cho News Feed (Tất cả mọi người)
     Page<Post> findAllByOrderByCreatedAtDesc(Pageable pageable);
     
+    // 🔥 HÀM MỚI: Lấy bài viết của CHÍNH MỘT NGƯỜI CỤ THỂ (Cho trang Profile)
+    Page<Post> findByUserUsernameOrderByCreatedAtDesc(String username, Pageable pageable);
 }

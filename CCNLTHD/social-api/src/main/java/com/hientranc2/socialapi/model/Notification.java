@@ -32,8 +32,10 @@ public class Notification {
     private String message;
     
     @Builder.Default
-    private boolean isRead = false; // Trạng thái đã xem hay chưa
+    @Column(name = "is_read")
+    private boolean isRead = false;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+    
 }

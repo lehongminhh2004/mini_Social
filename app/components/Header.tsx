@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { Home, Search, SquarePen, Heart, User, MessageCircle, Loader2 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { cn } from "@/app/lib/utils";
+import { cn, timeAgo } from "@/app/lib/utils"; // 🔥 Nhớ import thêm timeAgo
 import { useState } from "react";
 import { useGlobalChat } from "@/app/lib/ChatContext";
 import { Avatar } from "@/app/components/ui/Avatar";
-import { useQuery } from "@tanstack/react-query"; // Gọi API
+import { useQuery, useQueryClient } from "@tanstack/react-query"; 
 import { api } from "@/app/lib/api"; 
-import { useAuth } from "@/app/lib/auth-context"; // Lấy thông tin mình để loại trừ
+import { useAuth } from "@/app/lib/auth-context"; 
 
-// Định nghĩa Type cho cục Data trả về từ Backend
-interface ChatUser {
-  id: string;
-  username: string;
-  fullName: string;
-  avatarUrl?: string;
+// 🔥 TYPE MỚI CHUẨN MESSENGER
+interface Conversation {
+  partnerUsername: string;
+  partnerFullName: string;
+  partnerAvatarUrl?: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
 }
 
 export function Header() {
@@ -24,7 +26,8 @@ export function Header() {
   const [isChatMenuOpen, setIsChatMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { setActiveChatUser } = useGlobalChat();
-  const { user: currentUser } = useAuth(); // Lấy data của bản thân
+  const { user: currentUser } = useAuth(); 
+  const queryClient = useQueryClient();
 
   const navItems = [
     { icon: Home, href: "/" },
@@ -34,64 +37,85 @@ export function Header() {
     { icon: User, href: "/profile" },
   ];
 
-  // GỌI API LẤY DANH SÁCH USER THẬT (TỪ BACKEND)
-  const { data: userList = [], isLoading } = useQuery({
-    queryKey: ['all-users'],
+  // 🔥 ĐỔI SANG GỌI API CONVERSATIONS
+  const { data: conversationList = [], isLoading } = useQuery({
+    queryKey: ['chat-conversations'],
     queryFn: async () => {
-      const res = await api.get<ChatUser[]>('/users');
+      const res = await api.get<Conversation[]>('/chat/conversations');
       return res.data;
     },
-    // MẸO UX TỐI THƯỢNG: Chỉ gọi API khi người dùng BẤM MỞ Menu Chat. 
-    // Tránh việc F5 web mà load quá nhiều API không cần thiết!
-    enabled: isChatMenuOpen, 
+    enabled: isChatMenuOpen && !!currentUser, 
+    refetchInterval: isChatMenuOpen ? 5000 : false, // Đang mở menu thì 5s cập nhật 1 lần
   });
 
-  // LỌC DANH SÁCH: 
-  const filteredChatList = userList.filter(u => {
-    // 1. Không hiển thị chính mình trong danh sách chat
-    if (u.username === currentUser?.username) return false;
-    
-    // 2. Tìm kiếm theo Username hoặc Tên hiển thị (đều đưa về chữ thường để dễ tìm)
+  const { data: unreadNotiCount = 0 } = useQuery({
+    queryKey: ['unread-noti-count'],
+    queryFn: async () => {
+      const res = await api.get<number>('/notifications/unread-count');
+      return res.data;
+    },
+    enabled: !!currentUser, 
+    refetchInterval: 10000, 
+  });
+
+  const { data: unreadMsgCount = 0 } = useQuery({
+    queryKey: ['unread-msg-count'],
+    queryFn: async () => {
+      const res = await api.get<number>('/chat/unread-count');
+      return res.data;
+    },
+    enabled: !!currentUser,
+    refetchInterval: 10000,
+  });
+
+  const filteredConversations = conversationList.filter(c => {
     const keyword = searchQuery.toLowerCase();
-    return u.username.toLowerCase().includes(keyword) || 
-           (u.fullName && u.fullName.toLowerCase().includes(keyword));
+    return c.partnerUsername.toLowerCase().includes(keyword) || 
+           (c.partnerFullName && c.partnerFullName.toLowerCase().includes(keyword));
   });
 
   return (
     <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl tracking-tight text-foreground">
-          @
-        </Link>
+        <Link href="/" className="font-bold text-xl tracking-tight text-foreground">@</Link>
         
         <nav className="hidden md:flex items-center gap-6 relative">
           {navItems.map((item, i) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+            const isNoti = item.href === '/notifications'; 
+
             return (
-              <Link key={i} href={item.href} className={cn("p-3 rounded-lg transition-colors hover:bg-secondary", isActive ? "text-foreground" : "text-muted hover:text-foreground/80")}>
+              <Link key={i} href={item.href} className={cn("p-3 rounded-lg transition-colors hover:bg-secondary relative", isActive ? "text-foreground" : "text-muted hover:text-foreground/80")}>
                 <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                {isNoti && unreadNotiCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                    {unreadNotiCount > 99 ? '99+' : unreadNotiCount}
+                  </span>
+                )}
               </Link>
             );
           })}
 
-          {/* ICON NHẮN TIN VÀ MENU */}
           <div className="relative">
             <button onClick={() => setIsChatMenuOpen(!isChatMenuOpen)} className="p-3 rounded-lg transition-colors hover:bg-secondary text-muted hover:text-foreground/80 relative">
               <MessageCircle size={24} strokeWidth={2} />
+              {unreadMsgCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm pointer-events-none">
+                  {unreadMsgCount > 99 ? '99+' : unreadMsgCount}
+                </span>
+              )}
             </button>
 
             {isChatMenuOpen && (
-              <div className="absolute top-full right-0 mt-2 w-[360px] bg-background border border-border shadow-2xl rounded-2xl flex flex-col z-[100] overflow-hidden">
-                <div className="p-4 pb-2">
+              <div className="absolute top-full right-0 mt-2 w-[380px] bg-background border border-border shadow-2xl rounded-2xl flex flex-col z-[100] overflow-hidden">
+                <div className="p-4 pb-2 border-b border-border/50">
                   <h3 className="font-bold text-2xl text-foreground mb-3">Đoạn chat</h3>
-                  
-                  {/* THANH TÌM KIẾM */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
                     <input 
                       type="text" 
-                      placeholder="Tìm kiếm bạn bè..." 
+                      placeholder="Tìm kiếm trên Messenger..." 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full bg-secondary text-foreground rounded-full pl-10 pr-4 py-2 text-[15px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-muted"
@@ -99,35 +123,42 @@ export function Header() {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto max-h-[400px] p-2 pt-0 custom-scrollbar">
-                  {/* Hiệu ứng load xoay xoay nếu API đang chạy */}
+                <div className="flex-1 overflow-y-auto max-h-[400px] p-2 custom-scrollbar">
                   {isLoading ? (
                     <div className="flex justify-center items-center py-8">
                       <Loader2 className="animate-spin text-muted" size={24} />
                     </div>
-                  ) : filteredChatList.length > 0 ? (
-                    // In ra danh sách Data xịn
-                    filteredChatList.map(friend => (
-                      <button
-                        key={friend.username}
-                        onClick={() => {
-                          setActiveChatUser(friend.username);
-                          setIsChatMenuOpen(false);
-                        }}
-                        className="flex items-center gap-3 w-full p-2 hover:bg-secondary rounded-xl text-left transition-colors"
-                      >
-                        {/* URL Avatar thật từ Database */}
-                        <Avatar src={friend.avatarUrl} alt={friend.username} size="md" />
-                        <div className="flex-1 overflow-hidden">
-                          <p className="font-semibold text-[15px] text-foreground truncate">
-                            {friend.fullName || friend.username}
-                          </p>
-                          <p className="text-[13px] text-muted truncate">@{friend.username}</p>
-                        </div>
-                      </button>
-                    ))
+                  ) : filteredConversations.length > 0 ? (
+                    filteredConversations.map(conv => {
+                      const hasUnread = conv.unreadCount > 0;
+                      return (
+                        <button
+                          key={conv.partnerUsername}
+                          onClick={() => {
+                            setActiveChatUser(conv.partnerUsername);
+                            setIsChatMenuOpen(false);
+                          }}
+                          className="flex items-center gap-3 w-full p-2 hover:bg-secondary rounded-xl text-left transition-colors relative"
+                        >
+                          <Avatar src={conv.partnerAvatarUrl} alt={conv.partnerUsername} size="md" />
+                          <div className="flex-1 overflow-hidden pr-4">
+                            <p className={`text-[15px] truncate ${hasUnread ? 'font-bold text-foreground' : 'font-semibold text-foreground'}`}>
+                              {conv.partnerFullName || conv.partnerUsername}
+                            </p>
+                            <p className={`text-[13px] truncate mt-0.5 ${hasUnread ? 'font-bold text-foreground' : 'text-muted'}`}>
+                              {conv.lastMessage} · {timeAgo(conv.lastMessageAt)}
+                            </p>
+                          </div>
+                          
+                          {/* CHẤM XANH CHƯA ĐỌC Y HỆT MESSENGER */}
+                          {hasUnread && (
+                            <div className="absolute right-4 w-3 h-3 bg-blue-500 rounded-full shadow-sm"></div>
+                          )}
+                        </button>
+                      );
+                    })
                   ) : (
-                    <p className="text-center text-muted py-4 text-sm">Không tìm thấy ai</p>
+                    <p className="text-center text-muted py-4 text-sm">Chưa có cuộc hội thoại nào</p>
                   )}
                 </div>
               </div>
@@ -138,4 +169,4 @@ export function Header() {
       </div>
     </header>
   );
-} 
+}

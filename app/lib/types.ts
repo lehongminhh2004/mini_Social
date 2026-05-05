@@ -26,7 +26,7 @@ export interface Post {
   authorName: string;
   authorAvatarUrl?: string;
   content: string;
-  mediaUrl?: string | null;
+  mediaUrls?: string[];  
   createdAt: string;
   totalReactions: number;
   totalComments: number;
@@ -34,7 +34,7 @@ export interface Post {
   reactionBreakdown: ReactionSummary;
   isLiked: boolean;
   isShared: boolean;  
-
+  authorFollowerCount?: number;
 }
 
 // ============================================================
@@ -43,8 +43,28 @@ export interface Post {
 export interface Comment {
   id: string;
   content: string;
+  mediaUrl?: string;
   createdAt: string;
   author: User;
+  totalReactions?: number;
+  totalReplies?: number;
+  totalShares?: number;
+  isLiked?: boolean;
+  isShared?: boolean;
+  parentCommentId?: string | null;
+  replyingToUsername?: string;
+  postId: string; // ID của bài viết gốc chứa bình luận này
+}
+
+// ============================================================
+// Share (Repost)
+// ============================================================
+export interface ShareItem {
+  shareId: string;
+  type: 'POST' | 'COMMENT';
+  post?: Post;
+  comment?: Comment;
+  sharedAt: string;
 }
 
 // ============================================================
@@ -54,11 +74,14 @@ export type NotificationType = 'REACTION' | 'COMMENT' | 'SHARE' | 'FOLLOW';
 
 export interface NotificationItem {
   id: string;
-  type: NotificationType;
   message: string;
-  createdAt: string;
+  type: string;
+  targetId: string; 
   isRead: boolean;
-  sender?: Pick<User, 'username' | 'fullName' | 'avatarUrl'>;
+  createdAt: string;
+  senderUsername?: string;
+  senderFullName?: string;
+  senderAvatarUrl?: string;
 }
 
 // ============================================================

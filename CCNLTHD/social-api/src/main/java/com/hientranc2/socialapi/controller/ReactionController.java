@@ -33,4 +33,14 @@ public class ReactionController {
         // Trả về câu thông báo cho Postman (hoặc Frontend)
         return ResponseEntity.ok(result);
     }
+    @PostMapping("/comment/{commentId}")
+    public ResponseEntity<String> reactToComment(
+            Principal principal,
+            @PathVariable UUID commentId,
+            @RequestParam ReactionType type) {
+        
+        String username = principal.getName();
+        String result = reactionService.toggleCommentReaction(username, commentId, type);
+        return ResponseEntity.ok(result);
+    }
 }
