@@ -11,4 +11,5 @@ public class ChatHistoryDTO {
     private String receiverUsername;
     private String content;
     private LocalDateTime timestamp;
+    private String imageUrl;
 }

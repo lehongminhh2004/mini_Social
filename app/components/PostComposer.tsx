@@ -76,9 +76,11 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
       }
 
       if (replyToId) {
+        const endpoint = replyToId.length > 36 ? `/comments/reply/${replyToId}` : `/comments/post/${replyToId}`; 
+        
         await api.post(`/comments/post/${replyToId}`, { 
           content: content.trim(),
-          mediaUrl: finalMediaUrls.length > 0 ? finalMediaUrls[0] : '' 
+          mediaUrls: finalMediaUrls 
         });
       } else {
         await api.post('/posts', { 

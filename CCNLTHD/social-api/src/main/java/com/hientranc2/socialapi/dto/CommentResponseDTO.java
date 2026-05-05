@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.UUID;
-
+import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Data
@@ -15,7 +15,7 @@ public class CommentResponseDTO {
     private LocalDateTime createdAt;
     private UserSummaryDTO author;
     private UUID postId;
-    private String mediaUrl;
+    private List<String> mediaUrls;
     private int totalReactions;
     private int totalReplies;
     private int totalShares;

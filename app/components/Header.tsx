@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { Home, Search, SquarePen, Heart, User, MessageCircle, Loader2 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { cn, timeAgo } from "@/app/lib/utils"; // 🔥 Nhớ import thêm timeAgo
-import { useState } from "react";
+import { cn, timeAgo } from "@/app/lib/utils";
+import { useState, useEffect, useRef } from "react";
 import { useGlobalChat } from "@/app/lib/ChatContext";
 import { Avatar } from "@/app/components/ui/Avatar";
 import { useQuery, useQueryClient } from "@tanstack/react-query"; 
 import { api } from "@/app/lib/api"; 
 import { useAuth } from "@/app/lib/auth-context"; 
+import { Client } from '@stomp/stompjs'; // 🔥 Thêm thư viện STOMP
+import SockJS from 'sockjs-client'; // 🔥 Thêm thư viện SockJS
 
-// 🔥 TYPE MỚI CHUẨN MESSENGER
 interface Conversation {
   partnerUsername: string;
   partnerFullName: string;
@@ -28,6 +29,7 @@ export function Header() {
   const { setActiveChatUser } = useGlobalChat();
   const { user: currentUser } = useAuth(); 
   const queryClient = useQueryClient();
+  const stompClientRef = useRef<Client | null>(null);
 
   const navItems = [
     { icon: Home, href: "/" },
@@ -37,7 +39,6 @@ export function Header() {
     { icon: User, href: "/profile" },
   ];
 
-  // 🔥 ĐỔI SANG GỌI API CONVERSATIONS
   const { data: conversationList = [], isLoading } = useQuery({
     queryKey: ['chat-conversations'],
     queryFn: async () => {
@@ -45,7 +46,7 @@ export function Header() {
       return res.data;
     },
     enabled: isChatMenuOpen && !!currentUser, 
-    refetchInterval: isChatMenuOpen ? 5000 : false, // Đang mở menu thì 5s cập nhật 1 lần
+    refetchInterval: isChatMenuOpen ? 5000 : false,
   });
 
   const { data: unreadNotiCount = 0 } = useQuery({
@@ -55,7 +56,7 @@ export function Header() {
       return res.data;
     },
     enabled: !!currentUser, 
-    refetchInterval: 10000, 
+    // 🔥 Đã xóa refetchInterval vì bây giờ chạy bằng WebSocket
   });
 
   const { data: unreadMsgCount = 0 } = useQuery({
@@ -65,8 +66,36 @@ export function Header() {
       return res.data;
     },
     enabled: !!currentUser,
-    refetchInterval: 10000,
+    // 🔥 Đã xóa refetchInterval vì bây giờ chạy bằng WebSocket
   });
+
+  // 🔥 MA THUẬT HỨNG DỮ LIỆU REAL-TIME
+  useEffect(() => {
+    if (!currentUser) return;
+    const socket = new SockJS('http://localhost:8080/ws'); 
+    const client = new Client({
+      webSocketFactory: () => socket,
+      onConnect: () => {
+        // Hứng Thông Báo
+        client.subscribe(`/user/${currentUser.username}/queue/notifications`, () => {
+           // Báo React Query update lại cục đỏ ngay lập tức
+           queryClient.invalidateQueries({ queryKey: ['unread-noti-count'] });
+        });
+        
+        // Hứng Tin Nhắn (Báo đỏ ở Header luôn)
+        client.subscribe(`/user/${currentUser.username}/queue/messages`, () => {
+           queryClient.invalidateQueries({ queryKey: ['unread-msg-count'] });
+        });
+      }
+    });
+
+    client.activate();
+    stompClientRef.current = client;
+
+    return () => {
+      client.deactivate();
+    };
+  }, [currentUser, queryClient]);
 
   const filteredConversations = conversationList.filter(c => {
     const keyword = searchQuery.toLowerCase();
@@ -150,7 +179,6 @@ export function Header() {
                             </p>
                           </div>
                           
-                          {/* CHẤM XANH CHƯA ĐỌC Y HỆT MESSENGER */}
                           {hasUnread && (
                             <div className="absolute right-4 w-3 h-3 bg-blue-500 rounded-full shadow-sm"></div>
                           )}

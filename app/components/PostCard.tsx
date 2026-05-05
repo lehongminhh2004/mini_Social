@@ -12,10 +12,10 @@ import { api } from '@/app/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/lib/auth-context'; 
 
-// 🔥 Đã xóa CommentModal, dùng chung PostComposer siêu cấp
 import { PostComposer } from './PostComposer';
 import { ShareToMessageModal } from './ShareToMessageModal';
 import { EditPostModal } from './EditPostModal'; 
+import { ImageViewerModal } from './ImageViewerModal';
 
 interface PostCardProps {
   post: Post;
@@ -29,15 +29,15 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
   const queryClient = useQueryClient();
   
   const [showHoverCard, setShowHoverCard] = useState(false);
-  
-  // 🔥 Sử dụng isReplying thay cho isCommentModalOpen
   const [isReplying, setIsReplying] = useState(false); 
   const [isShareMessageModalOpen, setIsShareMessageModalOpen] = useState(false); 
   
-  // States cho Menu và Modal
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   
   const [isLiked, setIsLiked] = useState(post.isLiked || false); 
   const [likesCount, setLikesCount] = useState(post.totalReactions);
@@ -59,12 +59,9 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
     setCommentsCount(post.totalComments || 0);
   }, [post.isLiked, post.totalReactions, post.isShared, post.totalShares, post.totalComments]);
 
-  // Đóng menu khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -88,7 +85,6 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
     catch { setIsShared(!newIsShared); setSharesCount((prev) => (!newIsShared ? prev + 1 : prev - 1)); }
   };
 
-  // 🔥 Mở Form PostComposer để bình luận
   const handleCommentClick = (e: React.MouseEvent) => { 
       e.preventDefault(); e.stopPropagation(); 
       if (!user) { alert("Bạn cần đăng nhập!"); router.push('/auth/login'); return; } 
@@ -99,19 +95,13 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
   const handleFollowClick = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); if (!user) { alert("Bạn cần đăng nhập!"); router.push('/auth/login'); return; } router.push(`/profile/${post.authorUsername}`); };
 
   const handleDeletePost = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsMenuOpen(false);
+    e.stopPropagation(); setIsMenuOpen(false);
     if (!confirm('Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.')) return;
-    
     try {
       await api.delete(`/posts/${post.id}`);
       queryClient.invalidateQueries({ queryKey: ['feed'] });
-      if (user?.username) {
-        queryClient.invalidateQueries({ queryKey: ['user-threads', user.username] });
-      }
-    } catch (error) {
-      alert("Xóa thất bại!");
-    }
+      if (user?.username) queryClient.invalidateQueries({ queryKey: ['user-threads', user.username] });
+    } catch (error) { alert("Xóa thất bại!"); }
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -123,18 +113,13 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
   const onMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true; hasDragged.current = false;
     if (!sliderRef.current) return;
-    startX.current = e.pageX - sliderRef.current.offsetLeft;
-    scrollLeft.current = sliderRef.current.scrollLeft;
+    startX.current = e.pageX - sliderRef.current.offsetLeft; scrollLeft.current = sliderRef.current.scrollLeft;
   };
-  const onMouseLeaveOrUp = () => {
-    isDragging.current = false;
-    setTimeout(() => { hasDragged.current = false; }, 50);
-  };
+  const onMouseLeaveOrUp = () => { isDragging.current = false; setTimeout(() => { hasDragged.current = false; }, 50); };
   const onMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current || !sliderRef.current) return;
     e.preventDefault(); hasDragged.current = true; 
-    const x = e.pageX - sliderRef.current.offsetLeft;
-    const walk = (x - startX.current) * 1.5; 
+    const x = e.pageX - sliderRef.current.offsetLeft; const walk = (x - startX.current) * 1.5; 
     sliderRef.current.scrollLeft = scrollLeft.current - walk;
   };
 
@@ -142,7 +127,7 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
     if (!images || images.length === 0) return null;
     if (images.length === 1) {
       return (
-        <div className="mt-3 relative rounded-xl overflow-hidden border border-border">
+        <div onClick={(e) => { e.stopPropagation(); setViewerIndex(0); setViewerOpen(true); }} className="mt-3 relative rounded-xl overflow-hidden border border-border cursor-pointer">
           <img src={images[0]} alt="Post media" className="w-full h-auto object-cover max-h-[500px]" />
         </div>
       );
@@ -155,7 +140,7 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {images.map((img, idx) => (
-          <div key={idx} className="relative flex-shrink-0 rounded-xl overflow-hidden border border-border snap-center w-[240px] sm:w-[260px] h-[300px] sm:h-[350px]">
+          <div key={idx} onClick={(e) => { e.stopPropagation(); setViewerIndex(idx); setViewerOpen(true); }} className="relative flex-shrink-0 rounded-xl overflow-hidden border border-border snap-center w-[240px] sm:w-[260px] h-[300px] sm:h-[350px] cursor-pointer">
             <img src={img} alt={`Post media ${idx}`} className="w-full h-full object-cover pointer-events-none" />
           </div>
         ))}
@@ -201,37 +186,18 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
             <div className="flex items-center gap-2 text-muted text-sm">
               <span>{timeAgo(post.createdAt)}</span>
               <div className="relative" ref={menuRef}>
-                <button 
-                  className="p-1 rounded-full hover:bg-secondary/80 text-muted hover:text-foreground transition-colors" 
-                  onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
-                >
+                <button className="p-1 rounded-full hover:bg-secondary/80 text-muted hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}>
                   <MoreHorizontal size={18} />
                 </button>
-                
                 {isMenuOpen && (
                   <div className="absolute right-0 top-8 w-40 bg-background border border-border rounded-xl shadow-lg z-[100] overflow-hidden py-1">
                     {user?.username === post.authorUsername ? (
                       <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); setIsEditModalOpen(true); setIsMenuOpen(false); }} 
-                          className="w-full flex items-center gap-2 px-4 py-3 hover:bg-secondary text-sm font-medium transition-colors"
-                        >
-                          <Edit2 size={16} /> Chỉnh sửa
-                        </button>
-                        <button 
-                          onClick={handleDeletePost} 
-                          className="w-full flex items-center gap-2 px-4 py-3 hover:bg-secondary text-red-500 text-sm font-medium transition-colors"
-                        >
-                          <Trash2 size={16} /> Xóa bài
-                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setIsEditModalOpen(true); setIsMenuOpen(false); }} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-secondary text-sm font-medium transition-colors"><Edit2 size={16} /> Chỉnh sửa</button>
+                        <button onClick={handleDeletePost} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-secondary text-red-500 text-sm font-medium transition-colors"><Trash2 size={16} /> Xóa bài</button>
                       </>
                     ) : (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); alert("Chức năng đang phát triển!"); }} 
-                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-secondary text-sm font-medium transition-colors"
-                      >
-                        <Flag size={16} /> Báo cáo
-                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); alert("Đang phát triển!"); }} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-secondary text-sm font-medium transition-colors"><Flag size={16} /> Báo cáo</button>
                     )}
                   </div>
                 )}
@@ -245,41 +211,39 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
 
           {renderImageCarousel(post.mediaUrls)}
 
-          <div className="flex items-center gap-4 mt-3 text-foreground">
-            <button onClick={handleLike} className={`flex items-center gap-1.5 group transition-colors z-10 relative ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}><motion.div whileTap={{ scale: 0.8 }}><Heart size={20} className={isLiked ? 'fill-current' : ''} /></motion.div></button>
-            <button onClick={handleCommentClick} className="flex items-center gap-1.5 hover:text-foreground/80 transition-colors z-10 relative"><MessageCircle size={20} /></button>
-            <button onClick={handleShare} className={`flex items-center gap-1.5 group transition-colors z-10 relative ${isShared ? 'text-green-500' : 'hover:text-green-500'}`}><motion.div whileTap={{ scale: 0.8 }}><Repeat2 size={20} className={isShared ? 'stroke-current' : ''} /></motion.div></button>
-            <button onClick={handleSendMessageClick} className="flex items-center gap-1.5 hover:text-foreground/80 transition-colors z-10 relative"><Send size={20} /></button>
+          {/* 🔥 GIAO DIỆN NÚT TƯƠNG TÁC MỚI */}
+          <div className="flex items-center gap-6 mt-3 text-foreground">
+            <button onClick={handleLike} className={`flex items-center gap-1.5 group transition-colors z-10 relative ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}>
+              <motion.div whileTap={{ scale: 0.8 }}><Heart size={20} className={isLiked ? 'fill-current' : ''} /></motion.div>
+              {likesCount > 0 && <span className="text-[13px] text-muted-foreground group-hover:text-red-500 transition-colors">{likesCount}</span>}
+            </button>
+            <button onClick={handleCommentClick} className="flex items-center gap-1.5 hover:text-foreground/80 group transition-colors z-10 relative">
+              <MessageCircle size={20} className="group-hover:text-foreground/80 text-foreground" />
+              {commentsCount > 0 && <span className="text-[13px] text-muted-foreground group-hover:text-foreground/80 transition-colors">{commentsCount}</span>}
+            </button>
+            <button onClick={handleShare} className={`flex items-center gap-1.5 group transition-colors z-10 relative ${isShared ? 'text-green-500' : 'hover:text-green-500'}`}>
+              <motion.div whileTap={{ scale: 0.8 }}><Repeat2 size={20} className={isShared ? 'stroke-current' : ''} /></motion.div>
+              {sharesCount > 0 && <span className="text-[13px] text-muted-foreground group-hover:text-green-500 transition-colors">{sharesCount}</span>}
+            </button>
+            <button onClick={handleSendMessageClick} className="flex items-center gap-1.5 hover:text-foreground/80 transition-colors z-10 relative">
+              <Send size={20} />
+            </button>
           </div>
-
-          {(likesCount > 0 || commentsCount > 0 || sharesCount > 0) && (
-            <div className="flex items-center gap-2 mt-3 text-muted text-[15px]">
-              {commentsCount > 0 && <span>{commentsCount} replies</span>}
-              {commentsCount > 0 && (likesCount > 0 || sharesCount > 0) && <span>·</span>}
-              {likesCount > 0 && <span>{likesCount} likes</span>}
-              {likesCount > 0 && sharesCount > 0 && <span>·</span>}
-              {sharesCount > 0 && <span>{sharesCount} reposts</span>}
-            </div>
-          )}
         </div>
       </article>
       
       {!isReply && <div className="h-[1px] w-full bg-border" />}
 
-      {/* 🔥 ĐÃ GẮN POST COMPOSER VÀO ĐÂY ĐỂ BÌNH LUẬN */}
-      <PostComposer 
-        isOpen={isReplying} 
-        onClose={() => setIsReplying(false)} 
-        replyToId={post.id}
-        onSuccess={() => {
-          setCommentsCount(prev => prev + 1);
-          queryClient.invalidateQueries({ queryKey: ['feed'] });
-        }} 
-      />
-
+      <PostComposer isOpen={isReplying} onClose={() => setIsReplying(false)} replyToId={post.id} onSuccess={() => { setCommentsCount(prev => prev + 1); queryClient.invalidateQueries({ queryKey: ['feed'] }); }} />
       <ShareToMessageModal post={post} isOpen={isShareMessageModalOpen} onClose={() => setIsShareMessageModalOpen(false)} />
-      
       <EditPostModal post={post} isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} />
+      
+      <ImageViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        images={post.mediaUrls || []}
+        initialIndex={viewerIndex}
+      />
     </div>
   );
 }

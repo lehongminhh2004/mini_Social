@@ -43,7 +43,7 @@ export interface Post {
 export interface Comment {
   id: string;
   content: string;
-  mediaUrl?: string;
+  mediaUrls?: string[];
   createdAt: string;
   author: User;
   totalReactions?: number;
@@ -92,6 +92,7 @@ export interface ChatMessage {
   senderUsername: string;
   receiverUsername: string;
   content: string;
+  imageUrl?: string;
   timestamp: string;
 }
 

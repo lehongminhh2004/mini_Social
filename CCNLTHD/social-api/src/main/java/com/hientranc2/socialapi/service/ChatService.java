@@ -1,7 +1,7 @@
 package com.hientranc2.socialapi.service;
 
 import com.hientranc2.socialapi.dto.ChatHistoryDTO;
-import com.hientranc2.socialapi.dto.ConversationDTO; // 🔥 Import DTO mới
+import com.hientranc2.socialapi.dto.ConversationDTO; 
 import com.hientranc2.socialapi.model.ChatMessage;
 import com.hientranc2.socialapi.model.User;
 import com.hientranc2.socialapi.repository.ChatMessageRepository;
@@ -31,25 +31,22 @@ public class ChatService {
                 .senderUsername(msg.getSender().getUsername())
                 .receiverUsername(msg.getReceiver().getUsername())
                 .content(msg.getContent())
+                .imageUrl(msg.getImageUrl()) // 🔥 LẤY ẢNH TỪ DB
                 .timestamp(msg.getTimestamp())
                 .build()
         ).collect(Collectors.toList());
     }
 
-    // 🔥 HÀM MỚI: Lấy danh sách hội thoại (Giống Messenger)
     public List<ConversationDTO> getConversations(String username) {
         User me = userRepository.findByUsername(username).orElseThrow();
-        // Lấy tất cả tin nhắn, đã sắp xếp mới nhất lên đầu
         List<ChatMessage> allMessages = chatMessageRepository.findAllMessagesByUserId(me.getId());
 
         List<ConversationDTO> conversations = new ArrayList<>();
-        Set<String> processedPartners = new HashSet<>(); // Để ghi nhớ ai đã được đưa vào danh sách rồi
+        Set<String> processedPartners = new HashSet<>(); 
 
         for (ChatMessage msg : allMessages) {
-            // Xác định xem "đối tác" trong tin nhắn này là ai (mình gửi hay họ gửi)
             User partner = msg.getSender().equals(me) ? msg.getReceiver() : msg.getSender();
 
-            // Nếu người này chưa có trong danh sách thì thêm vào (vì tin nhắn đang xếp giảm dần nên đây chắc chắn là tin mới nhất)
             if (!processedPartners.contains(partner.getUsername())) {
                 long unreadCount = chatMessageRepository.countUnreadFromPartner(me.getId(), partner.getUsername());
                 
@@ -57,7 +54,8 @@ public class ChatService {
                         .partnerUsername(partner.getUsername())
                         .partnerFullName(partner.getFullName())
                         .partnerAvatarUrl(partner.getAvatarUrl())
-                        .lastMessage(msg.getContent())
+                        // Nếu gửi ảnh không có chữ thì hiện "Đã gửi một ảnh"
+                        .lastMessage(msg.getContent().isEmpty() && msg.getImageUrl() != null ? "📸 Đã gửi một ảnh" : msg.getContent())
                         .lastMessageAt(msg.getTimestamp())
                         .unreadCount(unreadCount)
                         .build());

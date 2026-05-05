@@ -27,11 +27,8 @@ public class ChatController {
     private final SimpMessagingTemplate messagingTemplate; 
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
-    private final ChatService chatService; // 🔥 Tiêm ChatService vào đây cho chuẩn Spring Boot
+    private final ChatService chatService; 
 
-    // ======================================================
-    // 1. CỔNG WEBSOCKET (Dành cho việc chat realtime)
-    // ======================================================
     @MessageMapping("/chat")
     public void processMessage(@Payload ChatMessageDTO chatDTO) {
         User sender = userRepository.findByUsername(chatDTO.getSenderUsername())
@@ -42,7 +39,8 @@ public class ChatController {
         ChatMessage message = ChatMessage.builder()
                 .sender(sender)
                 .receiver(receiver)
-                .content(chatDTO.getContent())
+                .content(chatDTO.getContent() != null ? chatDTO.getContent() : "") // Tránh lỗi null nếu chỉ gửi ảnh
+                .imageUrl(chatDTO.getImageUrl()) // 🔥 LƯU ẢNH
                 .build();
         ChatMessage savedMessage = chatMessageRepository.save(message);
 
@@ -50,10 +48,10 @@ public class ChatController {
                 .senderUsername(sender.getUsername())
                 .receiverUsername(receiver.getUsername())
                 .content(savedMessage.getContent())
+                .imageUrl(savedMessage.getImageUrl()) // 🔥 TRẢ VỀ ẢNH
                 .timestamp(savedMessage.getTimestamp())
                 .build();
 
-        // Bắn tin nhắn qua ống nước WebSocket cho người nhận
         messagingTemplate.convertAndSendToUser(
                 receiver.getUsername(), 
                 "/queue/messages", 
@@ -61,9 +59,6 @@ public class ChatController {
         );
     }
 
-    // ======================================================
-    // 2. REST API: GỬI TIN NHẮN (Dùng cho nút Share bài viết)
-    // ======================================================
     @PostMapping("/send")
     public ResponseEntity<ChatHistoryDTO> sendMessageRest(Principal principal, @RequestBody ChatMessageDTO chatDTO) {
         String senderUsername = principal.getName(); 
@@ -76,7 +71,8 @@ public class ChatController {
         ChatMessage message = ChatMessage.builder()
                 .sender(sender)
                 .receiver(receiver)
-                .content(chatDTO.getContent())
+                .content(chatDTO.getContent() != null ? chatDTO.getContent() : "")
+                .imageUrl(chatDTO.getImageUrl()) // 🔥 LƯU ẢNH
                 .build();
         ChatMessage savedMessage = chatMessageRepository.save(message);
 
@@ -84,10 +80,10 @@ public class ChatController {
                 .senderUsername(sender.getUsername())
                 .receiverUsername(receiver.getUsername())
                 .content(savedMessage.getContent())
+                .imageUrl(savedMessage.getImageUrl()) // 🔥 TRẢ VỀ ẢNH
                 .timestamp(savedMessage.getTimestamp())
                 .build();
 
-        // Bắn luôn qua WebSocket để người nhận đang online thấy ngay
         messagingTemplate.convertAndSendToUser(
                 receiver.getUsername(), 
                 "/queue/messages", 
@@ -97,17 +93,11 @@ public class ChatController {
         return ResponseEntity.ok(responseDTO);
     }
 
-    // ======================================================
-    // 3. REST API: LẤY DANH SÁCH CUỘC HỘI THOẠI (Messenger)
-    // ======================================================
     @GetMapping("/conversations")
     public ResponseEntity<List<ConversationDTO>> getConversations(Principal principal) {
         return ResponseEntity.ok(chatService.getConversations(principal.getName()));
     }
 
-    // ======================================================
-    // 4. REST API: ĐẾM SỐ TIN NHẮN CHƯA ĐỌC (Hiện chấm đỏ)
-    // ======================================================
     @GetMapping("/unread-count")
     public ResponseEntity<Long> getUnreadMessageCount(Principal principal) {
         User user = userRepository.findByUsername(principal.getName())
@@ -116,15 +106,12 @@ public class ChatController {
         return ResponseEntity.ok(count);
     }
 
-    // ======================================================
-    // 5. REST API: ĐÁNH DẤU ĐÃ ĐỌC (Xóa chấm đỏ, chấm xanh)
-    // ======================================================
     @PutMapping("/mark-read/{partnerUsername}")
     public ResponseEntity<String> markMessagesAsRead(Principal principal, @PathVariable String partnerUsername) {
         User me = userRepository.findByUsername(principal.getName())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
         
         chatMessageRepository.markMessagesAsRead(me.getId(), partnerUsername);
-        return ResponseEntity.ok("Đã đánh dấu đã đọc tin nhắn từ " + partnerUsername);
+        return ResponseEntity.ok("Đã đánh dấu đã đọc");
     }
 }

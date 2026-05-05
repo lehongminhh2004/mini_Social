@@ -4,6 +4,7 @@ import com.hientranc2.socialapi.dto.NotificationResponseDTO;
 import com.hientranc2.socialapi.model.*;
 import com.hientranc2.socialapi.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
@@ -13,6 +14,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NotificationService {
     private final NotificationRepository notificationRepository;
+    // 🔥 Tiêm ống nước WebSocket vào đây
+    private final SimpMessagingTemplate messagingTemplate;
 
     public void createNotification(User recipient, User sender, NotificationType type, UUID targetId, String message) {
         // Không tạo thông báo nếu mình tự tương tác với chính mình
@@ -25,20 +28,25 @@ public class NotificationService {
                 .targetId(targetId)
                 .message(message)
                 .build();
-        notificationRepository.save(notification);
+        Notification savedNotification = notificationRepository.save(notification);
+
+        // 🔥 MA THUẬT NẰM Ở ĐÂY: Vừa lưu DB xong là bắn ngay qua WebSocket
+        NotificationResponseDTO dto = mapToDTO(savedNotification);
+        messagingTemplate.convertAndSendToUser(
+                recipient.getUsername(),
+                "/queue/notifications", // Cổng ống nước dành riêng cho thông báo
+                dto
+        );
     }
 
-    // 🔥 Đổi kiểu trả về thành List<NotificationResponseDTO>
     public List<NotificationResponseDTO> getMyNotifications(User user) {
         List<Notification> notifications = notificationRepository.findAllByRecipientIdOrderByCreatedAtDesc(user.getId());
         return notifications.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
-    // 🔥 HÀM MA THUẬT: Biến đổi dữ liệu và thay chữ "LIKE" thành "thả tim"
     private NotificationResponseDTO mapToDTO(Notification notification) {
         String finalMessage = notification.getMessage();
         
-        // Mẹo fix chữ siêu nhanh: Nếu gặp câu cũ, tự động đổi thành câu mới
         if (finalMessage != null && finalMessage.contains("bày tỏ cảm xúc LIKE")) {
             finalMessage = finalMessage.replace("bày tỏ cảm xúc LIKE", "thả tim");
         }

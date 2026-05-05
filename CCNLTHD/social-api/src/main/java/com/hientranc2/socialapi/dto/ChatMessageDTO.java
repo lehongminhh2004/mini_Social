@@ -7,4 +7,5 @@ public class ChatMessageDTO {
     private String senderUsername;   // Ai gửi?
     private String receiverUsername; // Gửi cho ai?
     private String content;          // Nội dung là gì?
+    private String imageUrl;
 }

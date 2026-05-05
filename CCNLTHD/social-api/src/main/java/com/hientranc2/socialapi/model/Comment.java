@@ -28,8 +28,10 @@ public class Comment {
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
+    @ElementCollection
+    @CollectionTable(name = "comment_media", joinColumns = @JoinColumn(name = "comment_id"))
     @Column(name = "media_url")
-    private String mediaUrl;
+    private List<String> mediaUrls;
 
     // 🔥 TÍNH NĂNG MỚI: Tự trỏ về chính nó để làm Reply (Bình luận con)
     @ManyToOne(fetch = FetchType.LAZY)

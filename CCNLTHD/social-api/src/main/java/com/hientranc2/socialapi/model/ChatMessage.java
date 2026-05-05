@@ -33,11 +33,14 @@ public class ChatMessage {
     @Column(nullable = false, length = 1000)
     private String content;
 
+    // 🔥 THÊM CỘT LƯU LINK ẢNH
+    @Column(name = "image_url", length = 1000)
+    private String imageUrl;
+
     @CreationTimestamp
     @Column(name = "timestamp")
     private LocalDateTime timestamp;
 
-    // 🔥 THÊM DÒNG NÀY VÀO ĐÂY ĐỂ ĐÁNH DẤU CHƯA ĐỌC
     @Builder.Default
     @Column(name = "is_read")
     private Boolean isRead = false;
