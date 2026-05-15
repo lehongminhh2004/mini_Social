@@ -20,6 +20,7 @@ public class FileUploadService {
         // Tạo tên file ngẫu nhiên để không bị trùng
         String fileName = UUID.randomUUID().toString();
         
+        
         // Gửi lên Cloudinary
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(),
                 ObjectUtils.asMap("public_id", "social_network/" + fileName));

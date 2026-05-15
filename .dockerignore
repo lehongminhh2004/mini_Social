@@ -1,0 +1,16 @@
+# Bỏ qua rác của Frontend
+node_modules
+.next
+out
+build
+.env*.local
+
+# Bỏ qua rác của Backend
+CCNLTHD/social-api/target/
+CCNLTHD/social-api/.mvn/
+
+# Bỏ qua file hệ thống & Git
+.git
+.vscode
+.idea
+*.log

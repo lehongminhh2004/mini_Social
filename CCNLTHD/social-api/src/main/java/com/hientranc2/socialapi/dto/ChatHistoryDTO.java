@@ -11,4 +11,10 @@ public class ChatHistoryDTO {
     private String receiverUsername;
     private String content;
     private LocalDateTime timestamp;
+    private String imageUrl;
+    private String id; 
+    private Boolean isDeletedForEveryone;
+    private String deletedByUser;
+    private String reaction;
+    private String replyToContent;
 }

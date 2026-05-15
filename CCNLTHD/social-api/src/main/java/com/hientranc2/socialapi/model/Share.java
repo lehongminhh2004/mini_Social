@@ -17,9 +17,15 @@ public class Share {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    // ĐÃ SỬA: Bỏ nullable = false
     @ManyToOne
-    @JoinColumn(name = "post_id", nullable = false)
+    @JoinColumn(name = "post_id")
     private Post post;
+
+    // 🔥 TÍNH NĂNG MỚI: Cho phép Repost Comment
+    @ManyToOne
+    @JoinColumn(name = "comment_id")
+    private Comment comment;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)

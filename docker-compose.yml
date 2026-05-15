@@ -1,0 +1,53 @@
+# File: docker-compose.yml (ở ngoài cùng)
+
+services:
+  # 1. DATABASE POSTGRESQL
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: social_postgres
+    environment:
+      POSTGRES_DB: social_network_db  
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456  
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  # 2. BACKEND SPRING BOOT
+  backend:
+    build:
+      context: ./CCNLTHD/social-api
+      dockerfile: Dockerfile
+    container_name: social_backend
+    ports:
+      - "8080:8080"
+    environment:
+      # 🔥 Ghi đè cấu hình trong application.properties bằng biến môi trường
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres_db:5432/social_network_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=123456
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update 
+    depends_on:
+      - postgres_db
+    restart: always
+
+  # 3. FRONTEND NEXT.JS
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Trỏ API về Backend
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
+    depends_on:
+      - backend
+    restart: always
+
+# Giữ lại dữ liệu database kể cả khi tắt máy
+volumes:
+  postgres_data:
