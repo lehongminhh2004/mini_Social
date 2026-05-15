@@ -24,7 +24,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query(value = "SELECT COUNT(*) FROM user_follows WHERE followed_id = :userId", nativeQuery = true)
     int countFollowers(@Param("userId") UUID userId);
 
-   // Đổi hàm checkFollowing thành như sau:
     @Query(value = "SELECT COUNT(*) FROM user_follows WHERE follower_id = :followerId AND followed_id = :followedId", nativeQuery = true)
     int checkFollowing(@Param("followerId") UUID followerId, @Param("followedId") UUID followedId);
 
@@ -37,4 +36,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Transactional
     @Query(value = "DELETE FROM user_follows WHERE follower_id = :followerId AND followed_id = :followedId", nativeQuery = true)
     void unfollow(@Param("followerId") UUID followerId, @Param("followedId") UUID followedId);
+    @Query(value = "SELECT u.* FROM users u INNER JOIN user_follows f ON u.id = f.follower_id WHERE f.followed_id = :userId", nativeQuery = true)
+    List<User> getFollowers(@Param("userId") UUID userId);
 }

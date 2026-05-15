@@ -8,7 +8,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import com.hientranc2.socialapi.dto.ChangePasswordRequest;
 import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
@@ -112,5 +112,41 @@ public class UserController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/{username}/followers")
+    public ResponseEntity<List<UserProfileDTO>> getFollowers(@PathVariable String username) {
+        User targetUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng này"));
+
+        // Lấy danh sách user từ bảng follow (cần viết hàm tìm kiếm trong Repository)
+        // Lưu ý: Nếu bạn chưa có hàm getFollowers trong userRepository, 
+        // hãy xem BƯỚC 1.1 bên dưới để thêm vào.
+        List<User> followers = userRepository.getFollowers(targetUser.getId());
+
+        // Chuyển đổi sang DTO để trả về Frontend
+        List<UserProfileDTO> responseList = followers.stream().map(user -> UserProfileDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .avatarUrl(user.getAvatarUrl())
+                // Các trường khác tạm để mặc định, vì danh sách chỉ cần hiển thị tên và ảnh
+                .build()
+        ).toList();
+
+        return ResponseEntity.ok(responseList);
+    }
+    @PutMapping("/password")
+    public ResponseEntity<String> changePassword(Principal principal, @RequestBody ChangePasswordRequest request) {
+        try {
+            // Lấy username của người dùng đang đăng nhập từ Principal
+            String username = principal.getName();
+            
+            // Gọi service để thực hiện đổi mật khẩu
+            userService.changePassword(username, request.getOldPassword(), request.getNewPassword());
+            
+            return ResponseEntity.ok("Đổi mật khẩu thành công");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

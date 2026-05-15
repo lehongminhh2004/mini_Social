@@ -14,7 +14,7 @@ import { Post, Comment, ShareItem } from '@/app/lib/types';
 import { Mail, LogOut, Repeat2, Loader2 } from 'lucide-react';
 import { useGlobalChat } from '@/app/lib/ChatContext'; 
 import { EditProfileModal } from '@/app/components/EditProfileModal'; // 🔥 IMPORT MODAL Ở ĐÂY
-
+import { FollowersModal } from '@/app/components/FollowersModal';
 export default function OtherUserProfile() {
   const params = useParams(); 
   const targetUsername = params?.username as string; 
@@ -30,7 +30,7 @@ export default function OtherUserProfile() {
   
   // 🔥 STATE ĐIỀU KHIỂN MODAL EDIT PROFILE
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
+  const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const profileQueryKey = useMemo(() => ['user-profile', targetUsername, currentUser?.username], [targetUsername, currentUser?.username]);
 
   // ==========================================
@@ -158,7 +158,10 @@ export default function OtherUserProfile() {
             <p className="text-muted mt-1">@{profileUser.username}</p>
             {profileUser.email && <p className="text-foreground/70 mt-1">{profileUser.email}</p>}
             
-            <p className="text-foreground font-semibold mt-2">
+            <p 
+              className="text-foreground font-semibold mt-2 cursor-pointer hover:underline inline-block"
+              onClick={() => setIsFollowersModalOpen(true)}
+            >
               {profileUser.followerCount} <span className="font-normal text-muted">người theo dõi</span>
             </p>
           </div>
@@ -308,6 +311,12 @@ export default function OtherUserProfile() {
           bio: profileUser.bio || '',
           avatarUrl: profileUser.avatarUrl || ''
         }}
+      />
+    
+      <FollowersModal 
+        isOpen={isFollowersModalOpen} 
+        onClose={() => setIsFollowersModalOpen(false)} 
+        username={profileUser.username} 
       />
     </div>
   );

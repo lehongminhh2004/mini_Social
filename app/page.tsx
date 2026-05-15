@@ -7,16 +7,21 @@ import { PostCard } from '@/app/components/PostCard';
 import { Header } from '@/app/components/Header';
 import { BottomNav } from '@/app/components/BottomNav';
 import { PostComposer } from '@/app/components/PostComposer';
-import { Plus } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react'; 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-
+import { useInView } from 'react-intersection-observer'; 
 export default function Home() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // 🔥 TẠO CẢM BIẾN NHẬN DIỆN CHẠM ĐÁY
+  const { ref, inView } = useInView({
+    threshold: 0, // Chạm đúng vạch là kích hoạt ngay
+  });
 
   useEffect(() => {
     if (searchParams.get('compose') === 'true') {
@@ -29,7 +34,6 @@ export default function Home() {
     useInfiniteQuery({
       queryKey: ['feed'],
       queryFn: async ({ pageParam = 0 }) => {
-        // BE dùng page bắt đầu từ 0, size mặc định 5
         const res = await api.get<Post[]>(`/posts?page=${pageParam}&size=10`);
         return {
           items: res.data,
@@ -40,6 +44,13 @@ export default function Home() {
       getNextPageParam: (lastPage) => lastPage.nextPage,
     });
 
+  // 🔥 MA THUẬT NẰM Ở ĐÂY: KHI CẢM BIẾN HIỆN LÊN MÀN HÌNH VÀ CÒN TRANG TIẾP THEO -> TỰ ĐỘNG TẢI
+  useEffect(() => {
+    if (inView && hasNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, fetchNextPage]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -47,7 +58,9 @@ export default function Home() {
       <main className="max-w-[600px] mx-auto min-h-screen pb-20">
         <div className="w-full">
           {status === 'pending' ? (
-            <div className="p-4 text-center text-muted">Loading threads...</div>
+            <div className="p-8 flex justify-center text-muted">
+              <Loader2 className="animate-spin" size={32} />
+            </div>
           ) : status === 'error' ? (
             <div className="p-4 text-center text-red-500">
               Không thể tải bài viết. Kiểm tra kết nối với backend.
@@ -68,15 +81,22 @@ export default function Home() {
                 </div>
               )}
 
+              {/* 🔥 GẮN CẢM BIẾN VÀO CUỐI DANH SÁCH (THAY THẾ CHO NÚT BẤM) */}
               {hasNextPage && (
-                <div className="p-4 flex justify-center">
-                  <button
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="text-primary hover:underline"
-                  >
-                    {isFetchingNextPage ? 'Loading more...' : 'Load more'}
-                  </button>
+                <div ref={ref} className="p-8 flex justify-center items-center">
+                  {isFetchingNextPage ? (
+                    <Loader2 className="animate-spin text-muted" size={24} />
+                  ) : (
+                    // Một thẻ div tàng hình để làm điểm neo
+                    <div className="h-4 w-full"></div> 
+                  )}
+                </div>
+              )}
+              
+              {/* Thông báo hết bài viết */}
+              {!hasNextPage && data.pages[0].items.length > 0 && (
+                <div className="p-8 text-center text-muted text-sm border-t border-border mt-4">
+                  Bạn đã xem hết bài viết.
                 </div>
               )}
             </>

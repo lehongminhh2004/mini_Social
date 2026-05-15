@@ -44,4 +44,18 @@ public class ChatMessage {
     @Builder.Default
     @Column(name = "is_read")
     private Boolean isRead = false;
+
+    
+    @Column(name = "is_deleted_for_everyone")
+    @Builder.Default
+    private Boolean isDeletedForEveryone = false;
+
+    @Column(name = "deleted_by_user")
+    private String deletedByUser; 
+
+    @Column(name = "reaction")
+    private String reaction;  
+
+    @Column(name = "reply_to_content", length = 1000)
+    private String replyToContent; 
 }

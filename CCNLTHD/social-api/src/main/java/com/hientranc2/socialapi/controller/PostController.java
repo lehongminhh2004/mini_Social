@@ -32,7 +32,7 @@ public class PostController {
         Post savedPost = postService.createPost(username, request.getContent(), request.getMediaUrls());
         return ResponseEntity.ok(savedPost);
     }
-
+    
     // 🔥 API MỚI: CẬP NHẬT BÀI VIẾT
     @PutMapping("/{postId}")
     public ResponseEntity<PostResponseDTO> updatePost(Principal principal, @PathVariable UUID postId, @RequestBody CreatePostRequest request) {

@@ -12,10 +12,11 @@ interface PostComposerProps {
   isOpen: boolean;
   onClose: () => void;
   replyToId?: string;
+  isCommentReply?: boolean; // 🔥 FIX 1: THÊM CỜ NÀY ĐỂ PHÂN BIỆT RÕ RÀNG
   onSuccess?: () => void;
 }
 
-export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComposerProps) {
+export function PostComposer({ isOpen, onClose, replyToId, isCommentReply, onSuccess }: PostComposerProps) {
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
@@ -26,7 +27,6 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
-  // 🔥 CÁC REF DÙNG CHO TÍNH NĂNG KÉO THẢ CHUỘT (DRAG TO SCROLL)
   const sliderRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const startX = useRef(0);
@@ -75,10 +75,13 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
         finalMediaUrls = await Promise.all(uploadPromises);
       }
 
+      // 🔥 FIX 2: SỬ DỤNG ĐÚNG API DỰA TRÊN CỜ isCommentReply
       if (replyToId) {
-        const endpoint = replyToId.length > 36 ? `/comments/reply/${replyToId}` : `/comments/post/${replyToId}`; 
+        const endpoint = isCommentReply 
+          ? `/comments/reply/${replyToId}` 
+          : `/comments/post/${replyToId}`; 
         
-        await api.post(`/comments/post/${replyToId}`, { 
+        await api.post(endpoint, { 
           content: content.trim(),
           mediaUrls: finalMediaUrls 
         });
@@ -108,7 +111,6 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
     }
   };
 
-  // 🔥 CÁC HÀM XỬ LÝ KÉO CHUỘT
   const onMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
     if (!sliderRef.current) return;
@@ -124,7 +126,7 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
     if (!isDragging.current || !sliderRef.current) return;
     e.preventDefault();
     const x = e.pageX - sliderRef.current.offsetLeft;
-    const walk = (x - startX.current) * 1.5; // Tốc độ cuộn (nhân 1.5 để mượt hơn)
+    const walk = (x - startX.current) * 1.5; 
     sliderRef.current.scrollLeft = scrollLeft.current - walk;
   };
 
@@ -183,7 +185,6 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
                   autoFocus
                 />
 
-                {/* 🔥 KHU VỰC ẢNH CUỘN NGANG (DRAG TO SCROLL) */}
                 {previewUrls.length > 0 && (
                   <div 
                     ref={sliderRef}
@@ -192,7 +193,7 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
                     onMouseUp={onMouseLeaveOrUp}
                     onMouseMove={onMouseMove}
                     className="mt-2 flex gap-3 overflow-x-auto pb-2 snap-x hide-scrollbar cursor-grab active:cursor-grabbing"
-                    style={{ WebkitOverflowScrolling: 'touch' }} // Hỗ trợ cuộn mượt trên điện thoại
+                    style={{ WebkitOverflowScrolling: 'touch' }} 
                   >
                     {previewUrls.map((url, idx) => (
                       <div 
@@ -204,7 +205,6 @@ export function PostComposer({ isOpen, onClose, replyToId, onSuccess }: PostComp
                         <img 
                           src={url} 
                           alt={`Preview ${idx}`} 
-                          // pointer-events-none cực kỳ quan trọng để trình duyệt không hiểu lầm hành động "kéo chuột" thành "kéo ảnh tải về"
                           className="w-full h-full object-cover pointer-events-none"
                         />
                         <button 

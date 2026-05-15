@@ -67,22 +67,49 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Hàm tiện ích để refresh toàn bộ data liên quan đến post này
+  const refreshPostData = () => {
+    queryClient.invalidateQueries({ queryKey: ['feed'] });
+    queryClient.invalidateQueries({ queryKey: ['thread', post.id] });
+    queryClient.invalidateQueries({ queryKey: ['user-threads', post.authorUsername] });
+  };
+
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation(); 
     if (!user) { alert("Bạn cần đăng nhập!"); router.push('/auth/login'); return; }
+    
+    // Tối ưu UI (Optimistic Update)
     const newIsLiked = !isLiked;
-    setIsLiked(newIsLiked); setLikesCount((prev) => (newIsLiked ? prev + 1 : prev - 1));
-    try { await api.post(`/reactions/post/${post.id}?type=LIKE`); queryClient.invalidateQueries({ queryKey: ['feed'] }); } 
-    catch { setIsLiked(!newIsLiked); setLikesCount((prev) => (!newIsLiked ? prev + 1 : prev - 1)); }
+    setIsLiked(newIsLiked); 
+    setLikesCount((prev) => (newIsLiked ? prev + 1 : prev - 1));
+    
+    try { 
+      await api.post(`/reactions/post/${post.id}?type=LIKE`); 
+      refreshPostData(); // Cập nhật trên mọi mặt trận
+    } 
+    catch { 
+      // Rollback nếu API lỗi
+      setIsLiked(!newIsLiked); 
+      setLikesCount((prev) => (!newIsLiked ? prev + 1 : prev - 1)); 
+    }
   };
   
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation(); 
     if (!user) { alert("Bạn cần đăng nhập!"); router.push('/auth/login'); return; }
+    
     const newIsShared = !isShared;
-    setIsShared(newIsShared); setSharesCount((prev) => (newIsShared ? prev + 1 : prev - 1));
-    try { await api.post(`/shares/post/${post.id}`); queryClient.invalidateQueries({ queryKey: ['feed'] }); } 
-    catch { setIsShared(!newIsShared); setSharesCount((prev) => (!newIsShared ? prev + 1 : prev - 1)); }
+    setIsShared(newIsShared); 
+    setSharesCount((prev) => (newIsShared ? prev + 1 : prev - 1));
+    
+    try { 
+      await api.post(`/shares/post/${post.id}`); 
+      refreshPostData();
+    } 
+    catch { 
+      setIsShared(!newIsShared); 
+      setSharesCount((prev) => (!newIsShared ? prev + 1 : prev - 1)); 
+    }
   };
 
   const handleCommentClick = (e: React.MouseEvent) => { 
@@ -99,8 +126,7 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
     if (!confirm('Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.')) return;
     try {
       await api.delete(`/posts/${post.id}`);
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-      if (user?.username) queryClient.invalidateQueries({ queryKey: ['user-threads', user.username] });
+      refreshPostData();
     } catch (error) { alert("Xóa thất bại!"); }
   };
 
@@ -211,7 +237,6 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
 
           {renderImageCarousel(post.mediaUrls)}
 
-          {/* 🔥 GIAO DIỆN NÚT TƯƠNG TÁC MỚI */}
           <div className="flex items-center gap-6 mt-3 text-foreground">
             <button onClick={handleLike} className={`flex items-center gap-1.5 group transition-colors z-10 relative ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}>
               <motion.div whileTap={{ scale: 0.8 }}><Heart size={20} className={isLiked ? 'fill-current' : ''} /></motion.div>
@@ -234,7 +259,16 @@ export function PostCard({ post, hasReplies = false, isReply = false }: PostCard
       
       {!isReply && <div className="h-[1px] w-full bg-border" />}
 
-      <PostComposer isOpen={isReplying} onClose={() => setIsReplying(false)} replyToId={post.id} onSuccess={() => { setCommentsCount(prev => prev + 1); queryClient.invalidateQueries({ queryKey: ['feed'] }); }} />
+      {/* Sửa lại hàm onSuccess khi comment thành công */}
+      <PostComposer 
+        isOpen={isReplying} 
+        onClose={() => setIsReplying(false)} 
+        replyToId={post.id} 
+        onSuccess={() => { 
+          setCommentsCount(prev => prev + 1); 
+          refreshPostData(); 
+        }} 
+      />
       <ShareToMessageModal post={post} isOpen={isShareMessageModalOpen} onClose={() => setIsShareMessageModalOpen(false)} />
       <EditPostModal post={post} isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} />
       

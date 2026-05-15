@@ -20,9 +20,11 @@ interface CommentCardProps {
   comment: Comment;
   postId: string;
   replies?: Comment[];
+  allComments?: Comment[];
+  depth?: number; // 🔥 THÊM DEPTH ĐỂ XÁC ĐỊNH LÀ BÌNH LUẬN GỐC HAY TRẢ LỜI
 }
 
-export function CommentCard({ comment, postId, replies }: CommentCardProps) {
+export function CommentCard({ comment, postId, replies, allComments, depth = 0 }: CommentCardProps) {
   const [showReplies, setShowReplies] = useState(false);
   const router = useRouter(); 
   const { user } = useAuth(); 
@@ -47,6 +49,10 @@ export function CommentCard({ comment, postId, replies }: CommentCardProps) {
   const startX = useRef(0);
   const scrollLeft = useRef(0);
   const hasDragged = useRef(false); 
+
+  const activeReplies = allComments && allComments.length > 0 
+    ? allComments.filter(c => c.parentCommentId === comment.id) 
+    : (replies || []);
 
   useEffect(() => {
     setIsLiked(comment.isLiked || false);
@@ -139,12 +145,19 @@ export function CommentCard({ comment, postId, replies }: CommentCardProps) {
 
   return (
     <>
-      <div className="flex gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors border-b border-border/50">
+      {/* 🔥 FIX GIAO DIỆN: NẾU DEPTH > 0 THÌ BỎ ĐƯỜNG KẺ NGANG VÀ PADDING TRÁI PHẢI */}
+      <div className={`flex gap-3 transition-colors ${depth === 0 ? 'px-4 py-3 border-b border-border/50 hover:bg-white/[0.02]' : 'pt-3'}`}>
+        
+        {/* CỘT TRÁI: AVATAR VÀ ĐƯỜNG KẺ DỌC */}
         <div className="flex flex-col items-center">
           <Avatar src={comment.author.avatarUrl} alt={comment.author.username} size="sm" />
-          {showReplies && replies && replies.length > 0 && <div className="w-[2px] bg-border/50 flex-grow my-2 min-h-[30px]" />}
+          {/* Đường kẻ dọc này sẽ kéo dài xuống ôm lấy tất cả các bình luận con */}
+          {showReplies && activeReplies.length > 0 && (
+            <div className="w-[2px] bg-border/80 flex-grow mt-2 rounded-full" />
+          )}
         </div>
 
+        {/* CỘT PHẢI: NỘI DUNG VÀ BÌNH LUẬN CON */}
         <div className="flex-1 pb-1 min-w-0">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-1">
@@ -187,7 +200,6 @@ export function CommentCard({ comment, postId, replies }: CommentCardProps) {
 
           {renderImageCarousel(comment.mediaUrls)}
 
-          {/* 🔥 GIAO DIỆN NÚT TƯƠNG TÁC MỚI */}
           <div className="flex items-center gap-6 mt-2 text-muted">
             <button onClick={handleLike} className={`flex items-center gap-1.5 group transition-colors ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}>
               <motion.div whileTap={{ scale: 0.8 }}><Heart size={18} className={isLiked ? 'fill-current' : ''} /></motion.div>
@@ -206,26 +218,40 @@ export function CommentCard({ comment, postId, replies }: CommentCardProps) {
             </button>
           </div>
           
-          {replies && replies.length > 0 && (
+          {/* NÚT HIỂN THỊ TRẢ LỜI ĐƯỢC CHỈNH SỬA GIỐNG THREADS */}
+          {activeReplies.length > 0 && (
             <div className="mt-2">
-              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowReplies(!showReplies); }} className="flex items-center gap-3 text-[14px] font-semibold text-muted hover:text-foreground transition-colors">
+              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowReplies(!showReplies); }} className="flex items-center gap-3 text-[13px] font-semibold text-muted hover:text-foreground transition-colors">
                 <div className="w-8 h-[1px] bg-border"></div>
-                {showReplies ? 'Ẩn câu trả lời' : `Xem ${replies.length} câu trả lời`}
+                {showReplies ? 'Ẩn câu trả lời' : `Xem ${activeReplies.length} câu trả lời`}
               </button>
             </div>
           )}
 
-          {showReplies && replies && replies.length > 0 && (
-            <div className="mt-4 border-l-2 border-border/50 ml-2 pl-2">
-              {replies.map(reply => (
-                <div key={reply.id} className="pt-2"><CommentCard comment={reply} postId={postId} /></div>
+          {/* 🔥 KHU VỰC BÌNH LUẬN CON: BỎ HẾT BORDER LEFT VÀ PADDING THỪA */}
+          {showReplies && activeReplies.length > 0 && (
+            <div className="flex flex-col mt-1">
+              {activeReplies.map(reply => (
+                <CommentCard 
+                  key={reply.id} 
+                  comment={reply} 
+                  postId={postId} 
+                  allComments={allComments}
+                  depth={depth + 1} // BÁO HIỆU ĐÂY LÀ TẦNG CON ĐỂ NÓ BỎ PADDING CỦA TẦNG GỐC
+                />
               ))}
             </div>
           )}
         </div>
       </div>
         
-      <PostComposer isOpen={isReplying} onClose={() => setIsReplying(false)} replyToId={comment.id} onSuccess={() => { setRepliesCount(prev => prev + 1); setShowReplies(true); queryClient.invalidateQueries({ queryKey: ['comments', postId] }); }} />
+      <PostComposer 
+        isOpen={isReplying} 
+        onClose={() => setIsReplying(false)} 
+        replyToId={comment.id} 
+        isCommentReply={true} 
+        onSuccess={() => { setRepliesCount(prev => prev + 1); setShowReplies(true); queryClient.invalidateQueries({ queryKey: ['comments', postId] }); }} 
+      />
       <EditCommentModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} comment={comment} postId={postId} />
       
       <ImageViewerModal

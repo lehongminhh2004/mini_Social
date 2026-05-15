@@ -10,7 +10,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Override
+    @Override   
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Đây là cái cổng "/ws" để Frontend cắm ống nước vào
         // setAllowedOriginPatterns("*") để cho phép mọi Frontend đều kết nối được

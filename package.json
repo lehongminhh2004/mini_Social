@@ -19,6 +19,7 @@
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
+    "react-intersection-observer": "^10.0.3",
     "sockjs-client": "^1.6.1",
     "tailwind-merge": "^3.5.0"
   },

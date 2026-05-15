@@ -30,11 +30,10 @@ public class NotificationService {
                 .build();
         Notification savedNotification = notificationRepository.save(notification);
 
-        // 🔥 MA THUẬT NẰM Ở ĐÂY: Vừa lưu DB xong là bắn ngay qua WebSocket
         NotificationResponseDTO dto = mapToDTO(savedNotification);
         messagingTemplate.convertAndSendToUser(
                 recipient.getUsername(),
-                "/queue/notifications", // Cổng ống nước dành riêng cho thông báo
+                "/queue/notifications", 
                 dto
         );
     }
@@ -62,5 +61,14 @@ public class NotificationService {
                 .senderFullName(notification.getSender() != null ? notification.getSender().getFullName() : null)
                 .senderAvatarUrl(notification.getSender() != null ? notification.getSender().getAvatarUrl() : null)
                 .build();
+    }
+    public void sendSilentUpdate(String recipientUsername) {
+        if (recipientUsername == null || recipientUsername.isEmpty()) return;
+        
+        messagingTemplate.convertAndSendToUser(
+                recipientUsername,
+                "/queue/updates", // Tạo một kênh riêng chỉ dùng để báo update
+                "REFRESH_DATA" // Payload đơn giản
+        );
     }
 }

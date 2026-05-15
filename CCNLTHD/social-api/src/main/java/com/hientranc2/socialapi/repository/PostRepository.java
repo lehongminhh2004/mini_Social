@@ -15,4 +15,6 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
     
     // 🔥 HÀM MỚI: Lấy bài viết của CHÍNH MỘT NGƯỜI CỤ THỂ (Cho trang Profile)
     Page<Post> findByUserUsernameOrderByCreatedAtDesc(String username, Pageable pageable);
+
+    
 }

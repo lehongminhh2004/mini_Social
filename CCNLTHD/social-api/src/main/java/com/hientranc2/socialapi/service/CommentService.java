@@ -3,6 +3,7 @@ package com.hientranc2.socialapi.service;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate; // 🔥 Import ống nước phát thanh
 import com.hientranc2.socialapi.dto.CommentResponseDTO;
 import com.hientranc2.socialapi.dto.UserSummaryDTO;
 import com.hientranc2.socialapi.model.*;
@@ -26,6 +27,9 @@ public class CommentService {
     
     private final ReactionRepository reactionRepository;
     private final ShareRepository shareRepository;
+    
+    // 🔥 THÊM CÁI NÀY ĐỂ PHÁT THANH CHO CẢ LÀNG
+    private final SimpMessagingTemplate messagingTemplate;
 
     public CommentResponseDTO mapToDTO(Comment comment, String fallbackUsername) {
         UserSummaryDTO authorDTO = UserSummaryDTO.builder()
@@ -64,7 +68,6 @@ public class CommentService {
         return CommentResponseDTO.builder()
                 .id(comment.getId())
                 .content(comment.getContent())
-                // 🔥 ĐÃ ĐỔI SANG LIST MEDIA URLS
                 .mediaUrls(comment.getMediaUrls() != null ? comment.getMediaUrls() : new ArrayList<>())
                 .createdAt(comment.getCreatedAt())
                 .author(authorDTO)
@@ -79,7 +82,6 @@ public class CommentService {
                 .build();
     }
 
-    // 🔥 ĐÃ CẬP NHẬT: Nhận List<String> mediaUrls
     public CommentResponseDTO addComment(String username, UUID postId, String content, List<String> mediaUrls) {
         User user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
         Post post = postRepository.findById(postId).orElseThrow(() -> new RuntimeException("Không tìm thấy bài viết"));
@@ -88,7 +90,7 @@ public class CommentService {
                 .user(user)
                 .post(post)
                 .content(content)
-                .mediaUrls(mediaUrls != null ? mediaUrls : new ArrayList<>()) // Lưu mảng ảnh
+                .mediaUrls(mediaUrls != null ? mediaUrls : new ArrayList<>()) 
                 .build();
                 
         Comment savedComment = commentRepository.save(comment);
@@ -98,10 +100,12 @@ public class CommentService {
             user.getFullName() + " đã bình luận về bài viết của bạn."
         );
 
+        // 🔥 PHÁT THANH
+        messagingTemplate.convertAndSend("/topic/feed", "COMMENT_UPDATE");
+
         return mapToDTO(savedComment, username);
     }
 
-    // 🔥 ĐÃ CẬP NHẬT: Nhận List<String> mediaUrls
     public CommentResponseDTO replyToComment(String username, UUID parentCommentId, String content, List<String> mediaUrls) {
         User user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
         Comment parentComment = commentRepository.findById(parentCommentId).orElseThrow(() -> new RuntimeException("Không tìm thấy bình luận"));
@@ -111,7 +115,7 @@ public class CommentService {
                 .post(parentComment.getPost()) 
                 .parentComment(parentComment) 
                 .content(content)
-                .mediaUrls(mediaUrls != null ? mediaUrls : new ArrayList<>()) // Lưu mảng ảnh
+                .mediaUrls(mediaUrls != null ? mediaUrls : new ArrayList<>()) 
                 .build();
 
         Comment savedReply = commentRepository.save(reply);
@@ -125,10 +129,12 @@ public class CommentService {
             user.getFullName() + " đã trả lời bình luận của bạn."
         );
 
+        // 🔥 PHÁT THANH
+        messagingTemplate.convertAndSend("/topic/feed", "COMMENT_UPDATE");
+
         return mapToDTO(savedReply, username);
     }
 
-    // 🔥 HÀM MỚI: SỬA COMMENT (Hỗ trợ nhiều ảnh)
     @Transactional
     public CommentResponseDTO updateComment(String username, UUID commentId, String content, List<String> mediaUrls) {
         Comment comment = commentRepository.findById(commentId)
@@ -140,10 +146,14 @@ public class CommentService {
 
         comment.setContent(content);
         comment.setMediaUrls(mediaUrls != null ? mediaUrls : new ArrayList<>()); 
-        return mapToDTO(commentRepository.save(comment), username);
+        Comment savedComment = commentRepository.save(comment);
+
+        // 🔥 PHÁT THANH
+        messagingTemplate.convertAndSend("/topic/feed", "COMMENT_UPDATE");
+
+        return mapToDTO(savedComment, username);
     }
 
-    // 🔥 HÀM MỚI: XÓA COMMENT (Chống lỗi 500)
     @Transactional
     public void deleteComment(String username, UUID commentId) {
         Comment comment = commentRepository.findById(commentId)
@@ -153,19 +163,30 @@ public class CommentService {
             throw new RuntimeException("Không có quyền xóa");
         }
 
-        // Trừ đi 1 số đếm của comment cha (nếu nó là reply)
+        String postOwnerUsername = comment.getPost().getUser().getUsername();
+        String parentCommentOwnerUsername = null;
+
         if (comment.getParentComment() != null) {
             Comment parent = comment.getParentComment();
+            parentCommentOwnerUsername = parent.getUser().getUsername();
+            
             int currentReplies = parent.getTotalReplies() != null ? parent.getTotalReplies() : 0;
             parent.setTotalReplies(Math.max(0, currentReplies - 1));
             commentRepository.save(parent);
         }
 
-        // Dọn dẹp tim và share trước khi xóa comment để chống lỗi khóa ngoại (Foreign Key)
         reactionRepository.deleteByCommentId(commentId);
         shareRepository.deleteByCommentId(commentId);
 
         commentRepository.delete(comment);
+
+        notificationService.sendSilentUpdate(postOwnerUsername);
+        if (parentCommentOwnerUsername != null) {
+            notificationService.sendSilentUpdate(parentCommentOwnerUsername);
+        }
+
+        // 🔥 PHÁT THANH
+        messagingTemplate.convertAndSend("/topic/feed", "COMMENT_UPDATE");
     }
 
     public List<CommentResponseDTO> getCommentsByPost(UUID postId, String viewerUsername) {

@@ -66,12 +66,14 @@ export default function ThreadDetailPage() {
             <div className="p-4 text-center text-red-500">Không thể tải replies.</div>
           ) : (
             <>
+              {/* Lọc ra các bình luận gốc (level 1) */}
               {comments?.filter(c => !c.parentCommentId).map((comment) => (
                 <CommentCard 
                   key={comment.id} 
                   comment={comment} 
                   postId={postId} 
-                  replies={comments.filter(child => child.parentCommentId === comment.id)} 
+                  // 🔥 TRUYỀN TOÀN BỘ COMMENTS ĐỂ TỰ RENDER ĐỆ QUY BÌNH LUẬN CON
+                  allComments={comments} 
                 />
               ))}
 
@@ -85,7 +87,7 @@ export default function ThreadDetailPage() {
         </div>
       </main>
 
-      {/* Gọi Form PostComposer để bình luận (Bị ẩn, chỉ hiện khi click icon) */}
+      {/* Gọi Form PostComposer để bình luận vào BÀI VIẾT GỐC */}
       <PostComposer
         isOpen={isReplying}
         onClose={() => setIsReplying(false)}
